@@ -2,6 +2,7 @@
 
 > Document 2 · 数据路径教程 · Java → Systems Programming 的最小桥梁  
 > 核实日期：2026-09-19。CUDA Runtime / GPUDirect RDMA 在线页面显示 13.4；cuObject 页面更新于 2026-09-17。它们是本次核对的文档快照，不代表任意环境都具备相同支持。
+> 面试版修订：2026-09-20；本次复核 CUDA 同步/异步说明、verbs MR/post-send 与 cuObject 页面。新增时序与性能案例为教学假设。
 
 ## 目录
 
@@ -29,6 +30,10 @@
 | SKIP FOR NOW | PTX/SASS、Tensor Core 编程、CUTLASS、模板元编程、ABI 细节、RDMA driver/firmware、PCIe 电气层 |
 
 正文中的 C++/CUDA 小片段用于解释 lifetime 与顺序，不是一套完整 Demo。Demo 的实现边界在 Document 3。
+
+**一个月的掌握边界：**C++ 要能判断谁拥有资源、哪段引用会悬空；CUDA 要能画 copy/compute 的依赖；RDMA 要能沿一次 WRITE 解释 MR、QP、CQ 与完成。能读懂接口、指出错误并说明修正思路就达标，不要求闭卷写出完整 verbs 建链程序。
+
+读 API 表时只记“输入资源 → 提交动作 → 完成条件”。ODP、DC、GPU flush 的具体 API 参数是查文档内容；知道它们为何影响正确性即可。若目标 JD 明确要求 C++ coding，另安排语言练习，不能把这篇阅读完成等同于通过 C++ 编程面试。
 
 <a id="chapter-1"></a>
 
@@ -185,6 +190,27 @@ auto b = std::move(a);
 
 **工具链停止线：**本月会区分 `.cpp` host 编译与 `.cu` 的 CUDA 编译流程，理解 CMake target/link library，能用 gdb/lldb 看 host 堆栈和 use-after-free，知道 GPU 错误需要 CUDA 工具定位即可。不要先投入模板库和构建系统改造。
 
+### 2.7 Java 开发者最需要做的一道代码阅读题 — MUST KNOW
+
+下面是接口示意，`pool.borrow()` 返回一个 RAII lease，析构会把槽位还池，**该教学 pool 不自动等待设备**；`submit_h2d` 仅保存借用的地址并提交异步操作。
+
+```cpp
+void start_copy() {
+    auto src = pinned_pool.borrow(bytes);
+    auto dst = device_pool.borrow(bytes);
+    fill(src.data(), bytes);
+    submit_h2d(src.data(), dst.data(), bytes);
+} // 两个 lease 析构；pool 可能立即把槽位交给其他请求
+```
+
+问题不在“用了栈变量”，而在**操作持续的时间超过拥有者持续的时间**。源可能被另一请求重填，目标可能在 DMA 尚未结束时被分配给其他 consumer。若一个真实 wrapper 的析构选择等待，则可能避免这类错误，却把异步热路径变成阻塞；不能依赖未说明的析构行为。
+
+修正思路是让 completion 管理的 `TransferContext` 持有两个 lease，提交后把 context 的 ownership 转给在途队列。H2D 完成后可释放源；目标的 ownership 则交给 consumer，直到 consumer 完成才回池。`std::move` 可以移交 lease，payload 本身无需移动。
+
+同样检查 lambda：`[&context]` 捕获局部变量引用，变量退出后可能悬空；`[context]` 若捕获的是 owning `shared_ptr` 可以保活，但 context 内部若仍只有裸 buffer 指针，底层 allocation 依然没有被保活。会沿这两层追踪 ownership，比背所有智能指针构造函数更有用。
+
+**达标答案：**分别指出源保活到 copy 完成、目标保活到最后 consumer 完成；说明 callback 的 lifetime 与 payload 的 lifetime 都要检查。MR 资源在 §5 加入后，同样进入这个拥有关系。
+
 ### Interview Check
 
 **30 秒回答 — Why does C++ ownership matter here?**
@@ -307,6 +333,25 @@ sequenceDiagram
 UVA 是地址问题；Unified Memory 是驻留/访问管理问题；GPUDirect 是设备间数据路径问题。三者相关但不能互换。现代硬件一致性、HMM、ATS 等会改变具体路径，本月只需知道“平台特定”，不要背“统一内存一定拷贝”或“一定不拷贝”。[CUDA Unified and System Memory](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/understanding-memory.html)
 
 **为什么 cache manager 常用显式分配与搬运？** 它需要知道某块在哪、需要多少带宽、何时可用、何时回收；隐式缺页迁移可能把等待藏进 kernel，增加不可预测性。Unified Memory 适合某些开发和工作负载，但不会自动替你实现 prefix 热度、租户配额与 deadline。
+
+### 3.7 双缓冲不是两个指针：用四个 chunk 走时间轴 — SHOULD KNOW
+
+假设四个独立 chunk，每个 H2D 4 ms、consumer kernel 6 ms；copy 与 compute 能独立重叠，暂不计争用和提交开销。这些是教学输入。
+
+完全串行耗时 `4×(4+6)=40 ms`。使用两组 host/device buffer A、B，并遵守完成依赖，一种调度如下：
+
+| Chunk | 使用 buffer 组 | H2D 时间区间 | Consumer 时间区间 | 复用约束 |
+|---|---|---|---|---|
+| 1 | A | 0～4 ms | 4～10 ms | A 的 device 到 10 ms 才可覆盖 |
+| 2 | B | 4～8 ms | 10～16 ms | 等 compute engine 空闲后消费 |
+| 3 | A | 10～14 ms | 16～22 ms | 不能在 8 ms 就覆盖仍被 chunk 1 使用的 A |
+| 4 | B | 16～20 ms | 22～28 ms | 等 chunk 2 consumer 结束后覆盖 B |
+
+该假设下总计 28 ms；无限多 chunk 的稳态间隔接近较慢的 6 ms。源 host buffer 可在相应 H2D 后提前重填，表中按两组配对 buffer 简化展示。实现时用事件记录每个槽位的 copy_done 与 consume_done，不能只用一个全局 busy 标志。
+
+如果最后仍测到 40 ms，先检查是否每次都 host synchronize、是否用了 pageable staging、是否存在 stream 隐式依赖；如果 copy 和 compute 重叠后各自变慢，再看 HBM 或互连争用。CUDA 是否能并发执行取决于设备与工作条件，见 [CUDA 异步执行说明](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html)。
+
+本月应会读这张时序表，能解释两个回收时刻；无需实现通用异步执行框架。
 
 ### Interview Check
 
@@ -539,6 +584,31 @@ RoCE 部署要理解 congestion、ECN、PFC、丢包/重传与 head-of-line bloc
 
 **安全边界：**rkey 是硬件访问能力的一部分，不是 TLS 密钥，也不自动提供租户身份认证或链路加密。控制通道需要鉴权，descriptor 应限制范围、权限和寿命，payload 的安全要看实际网络/协议能力。
 
+### 5.9 把 verbs 名词填进一份实际工作描述 — MUST KNOW
+
+假设 storage server S 向 client C 写 64 KiB，先采用 host memory、普通 RC WRITE、非 inline、请求成功时有 completion 的教学路径：
+
+```text
+S 的 source MR：本地 src 地址，长度至少 64 KiB，lkey = S_local_key
+C 提供的目标：  远端 dst 地址，长度至少 64 KiB，rkey = C_remote_key
+
+S 提交到自己的 QP send queue：
+  opcode       = RDMA_WRITE
+  local SGE    = {src, 65536, S_local_key}
+  remote target= {dst, C_remote_key}
+  wr_id        = 关联本地 TransferContext 的标识
+
+S 从自己的 CQ 读取：{wr_id, status, ...}
+```
+
+`SGE.lkey` 检查 **S 本地** source；`rkey` 授权 **C 远端** target。把两者都填成 C 的 key 是概念性错误。`wr_id` 用于本地找回 context，不会自动变成远端对象 key，也不是发给 C 的应用级完成通知。字段与操作依据见 [libibverbs post-send 手册](https://man7.org/linux/man-pages/man3/ibv_post_send.3.html)。
+
+现在把方向改为 S 从 C 拉取上传数据：opcode 变为 READ，本地 SGE 指向 S 的接收目标，远端 descriptor 指向 C 的可读源。两种操作仍都由 S 的 send queue 提交。对于 WRITE，S 的 payload buffer 是源；对于 READ，它是目标，所以要相应检查本地写权限。[libibverbs MR 权限说明](https://man7.org/linux/man-pages/man3/ibv_reg_mr.3.html)
+
+最后把 C 的 host buffer 换成 GPU buffer：对象 API 和 READ/WRITE 的方向推理不变，但 C 必须提供受支持的 GPU 映射/注册，并在 kernel 消费前建立设备可见性。不能只把 `dst` 替换成 `cudaMalloc` 返回值就算完成集成。
+
+**追问边界：**会把 key、buffer、发起者和 completion 所在侧对应起来即可。RC 是本例学习载体；cuObject 当前使用 DC，不能照抄这个连接配置当产品实现。
+
 ### Interview Check
 
 **30 秒回答 — Why is RDMA fast?**
@@ -769,6 +839,21 @@ RDMA 可以高效写入一段远端内存，但它不负责定义：对象在哪
 
 也要承认边界：SDK 扩展可能影响中间代理、签名、重试、加密和兼容测试；普通 S3/TCP fallback 必须有明确协商，不能静默宣称 direct。
 
+### 7.8 “直接搬到 GPU”之后，谁把 bytes 变成可用 KV — MUST KNOW
+
+假设对象里存着一个 64 MiB 的全层 transfer chunk，而 attention 在 GPU 上需要按层分散的 KV pages。**直达 GPU 解决目的地访问能力，不解决所有格式适配。** 面试时给出两个能落地的候选即可：
+
+| 选择 | 数据流 | 代价与适用条件 |
+|---|---|---|
+| 恢复到最终页面 | 服务端按布局拆分，向已预留的多个目标 span 传输 | 少一次 GPU 重排；传输操作/descriptor 变多，协议和后端须支持 |
+| 恢复到 GPU staging | 大块传入连续 GPU buffer，再由转换 kernel 写最终页面 | 网络 I/O 较整齐；增加 HBM 读写、临时空间和 kernel 同步 |
+
+对于本地 gather/scatter list，也不能默认一条标准 RDMA WRITE 会自动散写到多个不连续的远端地址；需要多次操作或后端显式提供相应能力。具体限制按所用 transport/API 验证。
+
+CPU 解压是另一个选择点：如果存储格式必须在 CPU 上解码，先恢复到 pinned DRAM、解码后 H2D 可能更合适。若采用 GPU 解码，需要检查格式支持、额外 HBM 与 compute 成本。本月能列出这笔账即可，不必实现解压 kernel。
+
+**连续追问：**“为什么降低 host copy 后仍没快？”先看后端是否最慢；若后端够快，看 GPU layout conversion 是否新增了搬运；若转换也不贵，再看小块提交、排队、注册和同步。答案应随测量结果变化，不能只重复“zero-copy 更快”。
+
 ### Interview Check
 
 **30 秒回答 — How can S3 work with an RDMA data plane?**
@@ -810,7 +895,21 @@ RDMA 可以高效写入一段远端内存，但它不负责定义：对象在哪
 
 一个 NIXL/UCX 等传输抽象层可以封装多种后端，降低上层耦合，但不替代 cache policy 和存储语义。本月知道它的层次即可。[NVIDIA NIXL 官方仓库](https://github.com/ai-dynamo/nixl)
 
-### 8.2 本月停止线
+### 8.2 给出证据后，下一步应如何改变 — MUST KNOW
+
+下面是三组互相独立的教学排障结果，吞吐均按有效 payload 计：
+
+| 新证据 | 较合理的判断 | 下一步与可证伪条件 |
+|---|---|---|
+| 存储→host 只有 8 GiB/s，内存数据的 H2D 有 25 GiB/s | 后端或存储网络已限制供给 | 从 host 热缓存供数；若立刻明显变快，再查后端盘/EC/请求并发 |
+| 大块很快，64 KiB 小操作很慢，注册占总耗时 60% | 每次注册的固定成本可能占主导 | 固定地址注册池 A/B 对照；若注册消失但吞吐没变，继续找下一瓶颈 |
+| 确认 direct 生效、host 流量减少，但 GPU 等待不降 | copy avoidance 成立，业务瓶颈仍在别处 | 对齐 timeline 的后端等待、转换 kernel、compute 队列；不能因路径正确就宣称服务提速 |
+
+面试排障回答至少包含**假设、一个能区分原因的实验、观察什么结果、结果相反时怎么转向**。你的 production debugging 经验可以在这里直接发挥，而无需增加新框架知识。
+
+**30 秒起手：**“我先定义 8 GB/s 是哪一段、什么请求大小和并发，再测存储到 host、驻留内存到 GPU 的基线。然后用 CPU/GPU timeline 验证 staging、注册、同步和转换。只有证据指向 host 路径时，才评估 direct 的具体收益。”
+
+### 8.3 本月停止线
 
 你现在应当能脱稿画出三张图：pageable/pinned H2D 对比、TCP/RDMA 对比、传统 S3/GPU-aware S3 对比。每根数据箭头说明来源、目标、copy/DMA、资源寿命与完成条件。
 

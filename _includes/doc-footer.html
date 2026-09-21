@@ -27,7 +27,7 @@ Remove this override if a future DocSteer release fixes the issue.
     {%- assign prev = flat[prev_idx] -%}
     <a class="doc-pager__link doc-pager__prev" href="{{ prev.url | relative_url }}">
       <span class="doc-pager__dir"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Previous</span>
-      <span class="doc-pager__title">{{ prev.title }}</span>
+      <!-- <span class="doc-pager__title">{{ prev.title }}</span> -->
     </a>
   {% else %}<span></span>{% endif %}
 
@@ -37,7 +37,7 @@ Remove this override if a future DocSteer release fixes the issue.
     {%- assign next = flat[next_idx] -%}
     <a class="doc-pager__link doc-pager__next" href="{{ next.url | relative_url }}">
       <span class="doc-pager__dir">Next <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
-      <span class="doc-pager__title">{{ next.title }}</span>
+      <!-- <span class="doc-pager__title">{{ next.title }}</span> -->
     </a>
   {% endif %}
 </nav>

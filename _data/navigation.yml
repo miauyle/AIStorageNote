@@ -1,5 +1,5 @@
 main:
-  - title: 教程
+  - title: Docs
     url: /docs/01_AI_Storage_KV_Cache/
     icon: fa-solid fa-book
   - title: GitHub

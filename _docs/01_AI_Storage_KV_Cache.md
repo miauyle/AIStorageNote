@@ -1,3 +1,9 @@
+---
+title: AI Storage & KV Cache Interview Crash Course
+category: AI Storage 基础
+description: 从 LLM workload 推导 KV Cache 的容量、访问模式、缓存层级与存储选型。
+---
+
 # AI Storage & KV Cache Interview Crash Course
 
 > Document 1 · 主教程 · 面向有分布式对象存储经验的工程师  

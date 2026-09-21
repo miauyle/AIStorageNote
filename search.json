@@ -1,0 +1,58 @@
+---
+layout: null
+sitemap: false
+---
+{%- assign cfg = site.docsteer -%}
+{%- assign index_questions = cfg.search.index_questions -%}
+[
+  {%- assign entries = "" | split: "" -%}
+  {%- for coll in cfg.search.collections -%}
+    {%- assign items = site[coll] -%}
+    {%- for item in items -%}{%- assign entries = entries | push: item -%}{%- endfor -%}
+  {%- endfor -%}
+  {%- if cfg.search.include_pages -%}
+    {%- for p in site.html_pages -%}
+      {%- if p.search != false and p.title and p.url != "/404.html" -%}
+        {%- assign entries = entries | push: p -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- assign sep = "" -%}
+  {%- for item in entries -%}
+    {%- assign faq_src = item.faq -%}
+    {%- if item.faq_data -%}{%- assign faq_src = site.data[item.faq_data] -%}{%- endif -%}
+
+    {%- assign body = item.content -%}
+    {%- if faq_src and index_questions == false -%}
+      {%- capture faq_text -%}
+        {%- for f in faq_src -%} {{ f.q }} {{ f.a | markdownify }}{%- endfor -%}
+      {%- endcapture -%}
+      {%- assign body = item.content | append: " " | append: faq_text -%}
+    {%- endif -%}
+  {{ sep }}{
+    "title": {{ item.title | jsonify }},
+    "url": {{ item.url | relative_url | jsonify }},
+    "category": {{ item.category | default: item.section | default: "" | jsonify }},
+    "tags": {{ item.tags | join: " " | jsonify }},
+    "excerpt": {{ item.description | default: item.excerpt | strip_html | normalize_whitespace | truncatewords: 32 | jsonify }},
+    "content": {{ body | strip_html | normalize_whitespace | truncatewords: 220 | jsonify }}
+  }
+    {%- assign sep = "," -%}
+
+    {%- if faq_src and index_questions != false -%}
+      {%- for f in faq_src -%}
+        {%- capture q_url -%}{{ item.url | relative_url }}#{{ f.q | slugify }}{%- endcapture -%}
+        {%- assign q_title = f.q | markdownify | strip_html | normalize_whitespace -%}
+        {%- assign q_answer = f.a | markdownify | strip_html | normalize_whitespace -%}
+  {{ sep }}{
+    "title": {{ q_title | jsonify }},
+    "url": {{ q_url | jsonify }},
+    "category": {{ f.section | default: item.title | jsonify }},
+    "tags": {{ item.tags | join: " " | jsonify }},
+    "excerpt": {{ q_answer | truncatewords: 28 | jsonify }},
+    "content": {{ q_answer | truncatewords: 120 | jsonify }}
+  }
+      {%- endfor -%}
+    {%- endif -%}
+  {%- endfor -%}
+]

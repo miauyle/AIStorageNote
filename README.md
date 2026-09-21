@@ -9,9 +9,9 @@
 
 | 顺序 | 主教程 | 读完应能做什么 |
 |---|---|---|
-| 1 | [AI Storage & KV Cache Interview Crash Course](01_AI_Storage_KV_Cache.md) | 从 LLM workload 推导 KV 容量、热度、分页、复用与层级选择 |
-| 2 | [GPU Data Path: CUDA, RDMA, GPUDirect and S3](02_GPU_Data_Path.md) | 解释 Storage→GPU 的每一步、copy/DMA、ownership 与完成顺序 |
-| 3 | [AI Storage System Design & Interview Guide](03_System_Design_Interview_Demo.md) | 完成分布式 KV 系统设计，回答 30 个必答题，并拿到 Demo 实现规格 |
+| 1 | [AI Storage & KV Cache Interview Crash Course](_docs/01_AI_Storage_KV_Cache.md) | 从 LLM workload 推导 KV 容量、热度、分页、复用与层级选择 |
+| 2 | [GPU Data Path: CUDA, RDMA, GPUDirect and S3](_docs/02_GPU_Data_Path.md) | 解释 Storage→GPU 的每一步、copy/DMA、ownership 与完成顺序 |
+| 3 | [AI Storage System Design & Interview Guide](_docs/03_System_Design_Interview_Demo.md) | 完成分布式 KV 系统设计，回答 30 个必答题，并拿到 Demo 实现规格 |
 
 **这三份正文就是教程。** 官方链接用于核对事实与版本，不要求另读完整 CUDA/RDMA 文档才能理解。没有重写 ECS/ObjectScale 架构，也没有把任务扩成完整 AI Infra 课程。
 

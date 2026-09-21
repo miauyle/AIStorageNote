@@ -1,3 +1,9 @@
+---
+title: AI Storage System Design & Interview Guide
+category: 系统设计
+description: 分布式 KV Cache 系统设计、面试答案与 Demo 规格。
+---
+
 # AI Storage System Design & Interview Guide
 
 > Document 3 · 系统设计、面试答案与 Demo 规格  

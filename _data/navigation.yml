@@ -1,0 +1,20 @@
+main:
+  - title: 教程
+    url: /docs/01_AI_Storage_KV_Cache/
+    icon: fa-solid fa-book
+  - title: GitHub
+    url: https://github.com/miauyle/ai-storage-notes
+    icon: fa-brands fa-github
+
+sidebar:
+  - title: 核心基础
+    icon: fa-solid fa-layer-group
+    open: true
+    children:
+      - { title: "AI Storage 与 KV Cache", url: /docs/01_AI_Storage_KV_Cache/ }
+      - { title: "GPU Data Path", url: /docs/02_GPU_Data_Path/ }
+
+  - title: 系统设计
+    icon: fa-solid fa-diagram-project
+    children:
+      - { title: "系统设计与面试指南", url: /docs/03_System_Design_Interview_Demo/ }

@@ -1,3 +1,9 @@
+---
+title: "GPU Data Path: CUDA, RDMA, GPUDirect and S3"
+category: GPU 数据路径
+description: 理解 Storage 到 GPU 的数据路径、ownership、DMA 与完成顺序。
+---
+
 # GPU Data Path: CUDA, RDMA, GPUDirect and S3
 
 > Document 2 · 数据路径教程 · Java → Systems Programming 的最小桥梁  

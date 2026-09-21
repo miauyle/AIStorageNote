@@ -1,16 +1,111 @@
 title: AI Storage Notes
-description: AI Storage / KV Cache / GPU Data Path / S3 over RDMA
-
-remote_theme: just-the-docs/just-the-docs@v0.12.0
-
-plugins:
-  - jekyll-remote-theme
+tagline: AI Storage、KV Cache 与 GPU Data Path 面试教程
+description: 面向存储工程师的 AI Storage、KV Cache、GPU Data Path 与系统设计教程。
 
 url: "https://miauyle.github.io"
 baseurl: "/ai-storage-notes"
+lang: zh-CN
+timezone: Asia/Shanghai
 
-search_enabled: true
+theme: jekyll-theme-docsteer
 
-aux_links:
-  "GitHub":
-    - "https://github.com/miauyle/ai-storage-notes"
+docsteer:
+  skin: aqua
+  mode: auto
+  skin_switcher: true
+  mode_switcher: true
+  doc_layouts: [doc, faq]
+
+  sidebar:
+    enabled: true
+    collapse_inactive: true
+    sticky: true
+
+  toc:
+    enabled: true
+    min_headings: 2
+
+  search:
+    enabled: true
+    collections: [docs]
+    include_pages: true
+    hotkey: true
+    placeholder: "搜索文档…"
+    max_results: 8
+    index_questions: true
+
+  lightbox:
+    enabled: true
+
+  code:
+    copy_button: true
+    line_numbers: false
+
+  fontawesome:
+    enabled: true
+    source: local
+    cdn_url: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    cdn_integrity: ""
+
+  logo: /assets/images/logo.svg
+  favicon: /assets/images/favicon.svg
+
+  footer:
+    show_credit: true
+    copyright: "AI Storage Notes"
+    links:
+      - { label: "首页", url: "/" }
+      - { label: "GitHub", url: "https://github.com/miauyle/ai-storage-notes" }
+
+  social:
+    github: "miauyle/ai-storage-notes"
+    rss: true
+
+  edit_page:
+    enabled: true
+    repo: "https://github.com/miauyle/ai-storage-notes"
+    branch: "master"
+    path: ""
+
+collections:
+  docs:
+    output: true
+    permalink: /docs/:path/
+
+defaults:
+  - scope: { path: "", type: "docs" }
+    values:
+      layout: doc
+      seo:
+        type: TechArticle
+  - scope: { path: "" }
+    values:
+      layout: page
+
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    default_lang: plaintext
+
+sass:
+  style: compressed
+  sourcemap: never
+
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-feed
+  - jekyll-paginate
+
+feed:
+  path: feed.xml
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - node_modules
+  - README.md

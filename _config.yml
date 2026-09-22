@@ -51,7 +51,7 @@ docsteer:
   favicon: /assets/images/favicon.svg
 
   footer:
-    show_credit: true
+    show_credit: false
     copyright: "AI Storage Notes"
     links:
       - { label: "首页", url: "/" }

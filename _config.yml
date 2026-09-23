@@ -65,6 +65,7 @@ docsteer:
     enabled: true
     repo: "https://github.com/miauyle/ai-storage-notes"
     branch: "master"
+    # Collection document page.path already contains "_docs/..."; keep this empty.
     path: ""
 
 collections:

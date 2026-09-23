@@ -33,6 +33,35 @@ jobs:
         env:
           JEKYLL_ENV: production
 
+      - name: Validate Edit this page links
+        run: |
+          ruby <<'RUBY'
+          require "yaml"
+
+          config = YAML.load_file("_config.yml")
+          edit = config.dig("docsteer", "edit_page") || {}
+          expected_repo = "https://github.com/#{ENV.fetch("GITHUB_REPOSITORY")}"
+          abort "edit_page.repo must be #{expected_repo}" unless edit["repo"] == expected_repo
+
+          prefix = "#{edit["repo"]}/edit/#{edit["branch"]}/"
+          links = Dir["_site/**/*.html"].flat_map do |html|
+            File.read(html).scan(/<a class="doc-head__edit" href="([^"]+)"/).flatten.map { |href| [html, href] }
+          end
+          abort "No Edit this page links found in built site" if links.empty?
+
+          errors = []
+          links.each do |html, href|
+            unless href.start_with?(prefix)
+              errors << "#{html}: unexpected edit URL #{href}"
+              next
+            end
+            source = href.delete_prefix(prefix)
+            errors << "#{html}: source file not found: #{source}" unless File.file?(source)
+          end
+          abort errors.join("\n") unless errors.empty?
+          puts "Validated #{links.length} Edit this page links."
+          RUBY
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

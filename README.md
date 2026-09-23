@@ -12,10 +12,13 @@
 | 1 | [AI Storage & KV Cache Interview Crash Course](_docs/01_AI_Storage_KV_Cache.md) | 从 LLM workload 推导 KV 容量、热度、分页、复用与层级选择 |
 | 2 | [GPU Data Path: CUDA, RDMA, GPUDirect and S3](_docs/02_GPU_Data_Path.md) | 解释 Storage→GPU 的每一步、copy/DMA、ownership 与完成顺序 |
 | 3 | [AI Storage System Design & Interview Guide](_docs/03_System_Design_Interview_Demo.md) | 完成分布式 KV 系统设计，回答 30 个必答题，并拿到 Demo 实现规格 |
+| 配套 | [AI Storage 闭卷训练册](_docs/00_Interview_Drills.md) | Day 0 诊断、七条追问链、随机算题、英文口述与错题复测 |
 
 **这三份正文就是教程。** 官方链接用于核对事实与版本，不要求另读完整 CUDA/RDMA 文档才能理解。没有重写 ECS/ObjectScale 架构，也没有把任务扩成完整 AI Infra 课程。
 
-文档采用 Markdown，便于搜索、改写、做笔记和交给 Codex CLI。图用 Mermaid，表格和公式可直接阅读；在支持 Mermaid 的预览中显示为架构/时序图。三份主教程合计含 **22 组 Interview Check、17 张 Mermaid 图、30 道必答题**。Demo 只有设计与接口契约，没有完整实现代码。
+文档采用 Markdown，便于搜索、改写、做笔记和交给 Codex CLI。图用 Mermaid，表格和公式可直接阅读；在支持 Mermaid 的预览中显示为架构/时序图。三份主教程合计含 **22 组 Interview Check、17 张 Mermaid 图、30 道必答题**。Demo 只有设计与接口契约，没有完整实现代码。训练册与正文分开，第一次作答时不会直接看到标准答案。
+
+如果已经掌握部分内容，不要从头顺序重读：先做训练册的 Day 0 诊断，按 0 分题回到对应章节。若全部达到 2 分，直接练七条追问链和目标 JD，而不是继续扩大阅读范围。
 
 ## 深度规则
 
@@ -67,23 +70,23 @@
 
 ## 30 天怎么使用这些正文
 
-按每天约 3 小时安排，共约 90 小时；可与投递并行。每天建议约 90 分钟读正文、60 分钟闭卷画图/算题/口述、30 分钟纠错。官方资料主要用于核对特定边界，避免阅读时间不断挤占输出练习。
+按每天约 3 小时安排，共约 90 小时；可与投递并行。开始前先用训练册做 Day 0 诊断。每天建议约 90 分钟读正文、60 分钟闭卷画图/算题/口述、30 分钟纠错；错题按 D+1/D+3/D+7 复测。官方资料主要用于核对特定边界，避免阅读时间不断挤占输出练习。
 
 | 日期 | 直接学习的章节 | 当日/阶段可检查的输出 |
 |---|---|---|
 | Day 1～3 | 第一篇 §1～3 | 画 token→attention→KV；讲清训练/推理、Prefill/Decode |
 | Day 4～5 | 第一篇 §4 | 手算 FP16/FP8、MHA/GQA/MQA、10/100 并发与共享收益 |
-| Day 6～7 | 第一篇 §5～7 | 解释 paging、prefix 与 offload；给出对象层适合/不适合的情景 |
+| Day 6～7 | 第一篇 §5～7；训练册 Gate Day 7 | 解释 paging、prefix 与 offload；闭卷完成追问链 A/B |
 | Day 8～10 | 第二篇 §1～2 | 画拓扑；把 Java 引用思维切换到 buffer ownership/lifetime |
 | Day 11～12 | 第二篇 §3～4 | 解释 pinned/Async/Stream/Event 与 A/B/C 三条路径 |
-| Day 13～14 | 第二篇 §5 | 从 PD/MR/QP/CQ 讲完一次 READ/WRITE 与 completion |
+| Day 13～14 | 第二篇 §5；训练册 Gate Day 14 | 从 PD/MR/QP/CQ 讲完一次 READ/WRITE；闭卷完成追问链 C/D |
 | Day 15～16 | 第二篇 §6～8 | 区分 GDR/GDS/cuObject；画两种 S3 GET；解释如何证实路径 |
 | Day 17～19 | 第三篇 §1～3 | 设计 key、目录与一次恢复，解释 READY 和 lease |
-| Day 20～21 | 第三篇 §4～5 | 讲清缓存策略、prefetch、late DMA 与故障降级 |
+| Day 20～21 | 第三篇 §4～5；训练册 Gate Day 21 | 讲清缓存策略、late DMA；闭卷完成追问链 E/F |
 | Day 22～23 | 第三篇 §6～7 | 完成 64 MB 计算和一次 45 分钟 system design 演练 |
 | Day 24～26 | 第三篇 §7.2、§7.5、§8.11 | 连续追问、两次计时设计；读懂三个 Demo 实验，额外有余力再做 M0 |
-| Day 27～28 | 第三篇 §7.6 的七条知识链 + 已有项目材料 | 随机改数字重算；准备迁移/恢复、性能排障、partial failure 三张项目卡 |
-| Day 29～30 | 第三篇 §9、目标 JD、简历表述、投递 | 根据闭卷弱项补课，明确已有经验与模拟/实机证据边界 |
+| Day 27～28 | 训练册七条知识链 + 已有项目材料 | 随机改数字重算；准备迁移/恢复、性能排障、partial failure 三张项目卡 |
+| Day 29～30 | 训练册 Gate Day 29、第三篇 §9、目标 JD、投递 | 随机十题与英文口述；只根据错题补课 |
 
 若只有 60 小时：优先 MUST KNOW；C++ 语法表只读懂；Demo 不做真实硬件扩展；跳过 NICE TO KNOW。不能删掉的内容是 **KV 计算、恢复 vs 重算、buffer lifetime、RDMA completion、S3 语义与失效路径**。
 
@@ -91,7 +94,7 @@ Demo 默认只读设计。若选择实现，优先用熟悉的 Java 完成三个
 
 ## 三个贯穿算例
 
-1. 假设模型 `L=32, Hkv=8, D=128, FP16`：每 token 128 KiB；8,192 tokens 为 1 GiB/request；100 个未共享请求为 100 GiB payload。
+1. 假设模型 `L=32, Hkv=8, D=128, FP16`：每 token 128 KiB；8,192 tokens 为 1 GiB/request；100 个未共享请求为 100 GiB payload。正文中的 `8K/2K/32K tokens` 教学简称分别按 `8,192/2,048/32,768` 计算，除非另行注明。
 2. 16-token page：全层共 2 MiB；聚合 32 pages 为 64 MiB transfer chunk。逻辑聚合不保证物理连续。
 3. 64 MB 在 100/200/400 Gbps 上的纯传输下界：5.12/2.56/1.28 ms。64 MiB 要用另一组二进制大小计算，实际 load-to-ready 更高。
 
@@ -117,6 +120,8 @@ Demo 默认只读设计。若选择实现，优先用熟悉的 Java 完成三个
 官方依据：[CUDA Runtime](https://docs.nvidia.com/cuda/cuda-runtime-api/api-sync-behavior.html)、[GPUDirect RDMA](https://docs.nvidia.com/cuda/gpudirect-rdma/index.html)、[GDS](https://docs.nvidia.com/gpudirect-storage/overview-guide/index.html)、[cuObject](https://docs.nvidia.com/gpudirect-storage/cuobject/index.html)、[vLLM 历史说明页](https://docs.vllm.ai/en/latest/design/paged_attention/)、[LMCache 兼容性](https://docs.lmcache.ai/getting_started/compatibility.html)。各正文还在相关事实附近给出直接来源。
 
 在线文档会变化。后续实现时记录真实软件版本、GPU/NIC 型号、拓扑和配置；不要把本文件的核实日期当成对所有未来版本的承诺。
+
+高变化技术的来源、核实边界与实验环境模板集中在 [技术来源与版本台账](SOURCES.md)。引用 `latest` 页面是为了便于查当前状态；需要复现实验时应另记 release/tag/commit。
 
 ## 最容易答错的十句话
 

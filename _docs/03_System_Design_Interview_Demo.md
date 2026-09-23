@@ -60,7 +60,7 @@ description: 分布式 KV Cache 系统设计、面试答案与 Demo 规格。
 | 模型、token 长度分布、并发、reuse 分布和 TTFT/ITL SLO？ | 决定每请求 bytes、容量、网络与缓存价值 |
 | 部署是否同机房、具备何种 GPU/NIC，KV 丢失能否重算？ | 决定 RDMA/GPU-direct、故障保护与降级 |
 
-本题示例假设：同机房推理集群；GQA 模型参数沿用 Document 1；8K cached tokens 约 1 GiB/request；先服务**可复用 prefix 与暂停请求**，活跃 Decode 工作集优先 HBM。下面用 TTFT p95 300 ms、ITL p99 30 ms 作教学 SLO；它们不是对硬件性能的承诺。
+本题示例假设：同机房推理集群；GQA 模型参数沿用 Document 1；这里的 8K/2K tokens 分别表示 8,192/2,048，8K cached tokens 约 1 GiB/request；先服务**可复用 prefix 与暂停请求**，活跃 Decode 工作集优先 HBM。下面用 TTFT p95 300 ms、ITL p99 30 ms 作教学 SLO；它们不是对硬件性能的承诺。
 
 ### 1.2 五个不变量比功能列表重要
 

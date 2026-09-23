@@ -915,7 +915,37 @@ CPU 解压是另一个选择点：如果存储格式必须在 CPU 上解码，�
 
 **30 秒起手：**“我先定义 8 GB/s 是哪一段、什么请求大小和并发，再测存储到 host、驻留内存到 GPU 的基线。然后用 CPU/GPU timeline 验证 staging、注册、同步和转换。只有证据指向 host 路径时，才评估 direct 的具体收益。”
 
-### 8.3 本月停止线
+### 8.3 最小诊断工具箱：命令只是取证入口 — SHOULD KNOW
+
+面试不要求背所有命令，但应能把“我会检查 topology/fallback/completion”落到可执行证据。下表中的工具依赖具体 OS、driver 和软件包；命令不存在本身也是环境信息，不要为了得到漂亮输出而伪造安装状态。
+
+| 目标 | 常见入口 | 它能提供什么 | 它不能单独证明什么 |
+|---|---|---|---|
+| GPU/NIC/CPU 拓扑 | `nvidia-smi topo -m`、`lspci -tv`、`lspci -vv` | GPU、NIC、PCIe bridge、link width/speed 和跨 socket 路径线索 | 不能证明应用实际吞吐或 peer path 已启用 |
+| NUMA 布局 | `numactl --hardware`；进程 CPU/memory affinity | CPU、memory node 与设备是否可能跨 NUMA | 不能仅凭同 NUMA 推导无争用 |
+| RDMA 设备与 link | `ibv_devices`、`ibv_devinfo`、`rdma link` | provider、port、link state、MTU/GID 等基础能力 | 不能证明应用 QP/MR/权限或端到端对象路径正确 |
+| RDMA 基线 | perftest 的 `ib_write_bw` / `ib_read_bw`，固定方向、size、queue depth | 在明确配置下的 verbs 吞吐/延迟基线 | 不是 S3、KV layout 或 GPU-direct 的端到端结果 |
+| CUDA 时间线 | Nsight Systems 的 `nsys profile ...`；CUDA event 分段计时 | copy、kernel、host wait、stream overlap 与隐式串行线索 | event 只覆盖其所属 CUDA 顺序，不能自动包含外部 RNIC 完成 |
+| GPU/PCIe 活动 | `nvidia-smi dmon` 或平台 telemetry | 利用率、PCIe activity 等相关性线索 | 采样计数不能代替请求级 trace 或正确性验证 |
+| GDS 环境 | 安装包提供时使用 `gdscheck -p`，并查看 cuFile/direct/fallback 日志与计数 | 配置、支持项和是否可能 fallback 的证据 | 工具通过不代表某次业务 I/O 一定走 direct path |
+| CPU/DRAM/网络 | `perf`、`pidstat`、`sar`、NIC counters 与应用 trace | CPU hotspots、copy/TLS、内存与拥塞线索 | 单个高计数不能独立证明因果关系 |
+
+**建议的最小实验矩阵：**保持 payload 内容、大小和并发不变，依次测 `(1) backend→host`、`(2) resident pinned host→GPU`、`(3) end-to-end traditional path`、`(4) claimed direct path`。每项记录方向、单位、计时终点、CPU/DRAM、PCIe/NIC、正确性和 p50/p99。若硬件不支持第 4 项，明确写 `not available`，不要用 mock 结果填补。
+
+一次可复核的排障结论应包含：
+
+```text
+Observation: 哪一段、什么 size/concurrency、什么单位下慢
+Hypothesis: 一个可证伪原因
+Experiment: 只改变什么，保持什么不变
+Evidence: timeline/counter/correctness 中看什么
+Decision: 结果为真/假时分别做什么
+Environment: GPU/NIC/topology/driver/runtime/backend versions
+```
+
+工具名和输出字段会随平台变化；真正要掌握的是证据链。版本与来源记录方式见项目根目录的 [技术来源与版本台账]({% link SOURCES.md %})。
+
+### 8.4 本月停止线
 
 你现在应当能脱稿画出三张图：pageable/pinned H2D 对比、TCP/RDMA 对比、传统 S3/GPU-aware S3 对比。每根数据箭头说明来源、目标、copy/DMA、资源寿命与完成条件。
 

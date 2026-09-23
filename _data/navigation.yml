@@ -2,6 +2,9 @@ main:
   - title: Docs
     url: /docs/01_AI_Storage_KV_Cache/
     icon: fa-solid fa-book
+  - title: 训练
+    url: /docs/00_Interview_Drills/
+    icon: fa-solid fa-pen-to-square
   - title: GitHub
     url: https://github.com/miauyle/ai-storage-notes
     icon: fa-brands fa-github
@@ -18,3 +21,9 @@ sidebar:
     icon: fa-solid fa-diagram-project
     children:
       - { title: "系统设计与面试指南", url: /docs/03_System_Design_Interview_Demo/ }
+
+  - title: 闭卷训练
+    icon: fa-solid fa-pen-to-square
+    children:
+      - { title: "诊断、追问与复测", url: /docs/00_Interview_Drills/ }
+      - { title: "技术来源与版本", url: /SOURCES.html }

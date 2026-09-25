@@ -31,6 +31,8 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 
 **通过标准：**MUST KNOW 题至少 2 分；容量、buffer lifetime、RDMA completion、半块不发布和安全回收不得为 0 分。不要用平均分掩盖概念性错误。
 
+<a id="day0-diagnosis"></a>
+
 ## 1. Day 0 诊断
 
 在阅读正文前或复习一轮后，限时 45 分钟完成。先保存答案，再查看章节定位。
@@ -56,6 +58,8 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 - 第 6～9 题任一为 0：Document 2 的 ownership、CUDA 顺序和 RDMA lifecycle 不可跳过。
 - 第 10～12 题任一为 0：先重走 Document 3 的 performance model 和状态机，再做 45 分钟设计。
 - 全部至少 2 分：停止顺序重读，直接进入下面八条追问链和目标 JD 校准。
+
+<a id="drill-chains"></a>
 
 ## 2. 八条追问链
 
@@ -123,6 +127,8 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 4. **规模题：**目录 page 粒度产生 512 次 lookup；在不改变 GPU page 大小的前提下降低 metadata 放大。
 
 核对：[Document 3 §1～6]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-1)。
+
+<a id="cold-kv-drill"></a>
 
 ### 链 H：冷 Prefix KV 怎样经 S3 进入 GPU — 目标岗位主线
 

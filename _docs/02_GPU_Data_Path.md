@@ -9,7 +9,7 @@ description: 理解 Storage 到 GPU 的数据路径、ownership、DMA 与完成�
 > Document 2 · 数据路径教程 · Java → Systems Programming 的最小桥梁  
 > 核实日期：2026-09-19。CUDA Runtime / GPUDirect RDMA 在线页面显示 13.4；cuObject 页面更新于 2026-09-17。它们是本次核对的文档快照，不代表任意环境都具备相同支持。
 > 面试版修订：2026-09-20；本次复核 CUDA 同步/异步说明、verbs MR/post-send 与 cuObject 页面。新增时序与性能案例为教学假设。
-> 2026-09-25：新增一个冷 KV Range GET 从对象服务端到 GPU Ready 的贯穿案例；未对所有外部资料重新核实。
+> 2026-09-25：新增冷 KV Range GET 贯穿案例及通用对象服务端前台读路径；Java→C++ 的 buffer 前置也做了补充。未对所有外部资料重新核实。
 
 ## 目录
 
@@ -38,7 +38,7 @@ description: 理解 Storage 到 GPU 的数据路径、ownership、DMA 与完成�
 
 正文中的 C++/CUDA 小片段用于解释 lifetime 与顺序，不是一套完整 Demo。Demo 的实现边界在 Document 3。
 
-**一个月的掌握边界：**C++ 要能判断谁拥有资源、哪段引用会悬空；CUDA 要能画 copy/compute 的依赖；RDMA 要能沿一次 WRITE 解释 MR、QP、CQ 与完成。能读懂接口、指出错误并说明修正思路就达标，不要求闭卷写出完整 verbs 建链程序。
+**一个月的掌握边界：**C++ 要能判断谁拥有资源、哪段引用会悬空；CUDA 要能画 copy/compute 的依赖；RDMA 要能沿一次 WRITE 解释 MR、QP、CQ 与完成。能读懂接口、指出错误并说明修正思路就达标，不要求闭卷写出完整 verbs 建链程序。若选择实现第三篇 Demo，再额外完成 C++17/20 + CMake 的最小 S3→host probe、RAII buffer 和可测试的 completion/失败路径；这属于编码练习，不自动等于真实 RDMA。
 
 读 API 表时只记“输入资源 → 提交动作 → 完成条件”。ODP、DC、GPU flush 的具体 API 参数是查文档内容；知道它们为何影响正确性即可。若目标 JD 明确要求 C++ coding，另安排语言练习，不能把这篇阅读完成等同于通过 C++ 编程面试。
 
@@ -118,7 +118,7 @@ flowchart TD
 
 ### 2.1 从 Java 的 `Foo foo = new Foo()` 开始
 
-Java 变量通常保存受 GC 管理的对象引用；C++ 要把“对象本体、借用地址、拥有者”说清楚。
+Java 变量通常保存受 GC 管理的对象引用；C++ 要把“对象本体、借用地址、拥有者”说清楚。Java NIO direct buffer 即使持有堆外 host bytes，也不会自动变成 CUDA pinned memory、RDMA 已注册区域或 GPU HBM；Java 的 Future/回调结束也只能按其实际 API 契约解释，不能推断 RNIC/CUDA 的物理完成与设备可见。先问 payload 的真实地址和寿命，再问提交与可复用的时刻。
 
 | C++ 表达式 | 含义 | Lifetime / ownership | 在数据路径中为什么用 |
 |---|---|---|---|
@@ -730,6 +730,20 @@ flowchart TD
 <a id="chapter-7"></a>
 
 ## 7. S3 + RDMA + GPU：对象语义与搬运机制分开 — MUST KNOW
+
+<a id="s3-server-read-prereq"></a>
+
+### 前置：从对象服务端走完一次前台 Range GET
+
+这是一条**通用对象存储教学路径，不是 ECS/ObjectScale 的内部实现图**。客户端带 bucket/key、可选 version 与 byte range 发起 GET；服务端完成鉴权、找到对象元数据及覆盖这个范围的后端数据位置，向副本或 EC 条带相关节点读取，必要时组装/解码并校验，再把目标范围的 bytes 交给响应路径。不同产品可以把 gateway、data node 和响应端组合成不同形态，不要求每次都经同一个中转 buffer。
+
+| 阶段 | 要确认的证据 | 常见误判 |
+|---|---|---|
+| 解析对象请求 | tenant、版本/不可变 key、Range 边界、预期长度 | 相同 key 不核对版本就复用旧 KV |
+| 映射与后端读取 | 覆盖哪些 chunk/stripe，读了多少后端 bytes，排队/读/解码分别耗时多少 | 64 MiB 的客户端 Range 一定只产生 64 MiB 物理读 |
+| 返回 payload | 内容完整性、错误语义、客户端目标 buffer 与重试边界 | 服务端提交网络发送就等于 GPU 已可消费 |
+
+用已有经历做对照：**chunk replication** 是源端推动的跨 VDC 异步搬运，**data migration** 是在线后台迁移，**CRR** 按 Bucket 对象语义复制；本题则是受请求 deadline 约束的**前台读取**。三者都要考虑范围、完整性、重试和资源争用，但完成条件、耐久目标和延迟预算不同。先用 read amplification = backend bytes / returned bytes 与分阶段耗时验证后端，再问 RDMA 是否能省掉客户端 host copy；不能因为 NIC 支持 RDMA 就跳过对象定位、EC/副本读取或 GPU layout 转换。生产问题定位以实际日志和 chunk 状态为证据；Go telemetry 的既有工作是运行数据采集与统计，不包装成此路径的 GPU 性能排障经历。
 
 ### 7.1 Traditional S3 GET 的瓶颈在哪里
 

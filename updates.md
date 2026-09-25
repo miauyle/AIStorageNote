@@ -7,6 +7,13 @@ permalink: /updates/
 
 这里记录已发布的**教程内容更新**，按北京时间排列。每条链接指向当前教程的对应位置；旧章节可能已被后来修订。站点样式、按钮和构建修复不计入内容更新。
 
+## 2026-09-25 · 按 ECS/ObjectScale 经历校准前置与 C++ Demo
+
+- **已有经验与学习前置：**[ECS chunk replication、在线迁移、ObjectScale CRR 与冷 KV 的边界]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#ecs-to-ai-storage)；Java 功能开发与 Go telemetry 的职责单独写清，不预设对象放置或 GPU 实现经验。
+- **对象服务端前台读取：**[Range GET 从对象定位、后端读取到 host buffer 的教学路径]({{ site.baseurl }}/docs/02_GPU_Data_Path/#s3-server-read-prereq)，与异步复制/后台迁移作区别。
+- **面试项目证据：**[三张 ECS/ObjectScale 项目卡]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#ecs-project-cards)，以本人代码、日志/chunk 状态和实际验证填写，不用团队成果或未经公开许可的数据冒充个人成果。
+- **C++ Demo：**[C++17/20 + CMake 的实现范围]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#cpp-demo-scope)和[真实 S3→host Range GET 基线]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#cpp-s3-probe)；模拟 RDMA 故障与真实 GPU/RDMA 性能分别标注。
+
 ## 2026-09-25 · KV Cache × S3 over RDMA × GPU Data Path 贯穿案例
 
 - **冷 Prefix 的存储决策：**[如何区分活跃 Decode、P/D 即时交接与 S3 冷层复用]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#kv-cold-prefix-decision)，比较恢复与重算的完整代价。

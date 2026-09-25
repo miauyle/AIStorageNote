@@ -10,7 +10,7 @@ description: 从 LLM workload 推导 KV Cache 的容量、访问模式、缓存�
 > 核实日期：2026-09-19。正文以常规自回归、decoder-only、dense attention 的 Transformer 为基线；特殊模型明确标出。  
 > 学习产出：能从 workload 推导容量、访问模式、缓存层级与存储选型，而不是只解释名词。
 > 面试版修订：2026-09-20。新增案例均为明确假设下的推演；本次重点复核 prefix caching 与 CUDA/传输相关边界，未将全部来源重新标为当日核实。
-> 2026-09-25：新增 KV × S3 × GPU 的场景决策与冷 Prefix 贯穿案例；时间预算仍为教学假设。
+> 2026-09-25：新增 KV × S3 × GPU 贯穿案例，并按 ECS/ObjectScale 的 Java 功能开发、Go telemetry 与实际排障经验校准前置；时间预算仍为教学假设。
 
 ## 目录
 
@@ -28,7 +28,21 @@ description: 从 LLM workload 推导 KV Cache 的容量、访问模式、缓存�
 
 ## 0. 范围与使用方法
 
-这套教程默认你已经会设计对象存储的数据放置、复制、恢复和后台任务。需要补齐的是：**GPU 消费什么数据，以什么频率消费，哪些状态可以重算，哪些 I/O 会阻塞用户。**
+本教程以你在 Dell EMC ECS/ObjectScale 的实际工作为起点：主要用 **Java** 开发 ECS chunk replication、data migration 和 ObjectScale Bucket CRR 相关功能；**Go telemetry** 用于 ECS/ObjectScale 运行数据的采集与统计分析，Python 曾用于工作但不默认承担复制主链路。线上问题会结合日志和 chunk 内的 DT 表等状态信息分析。你熟悉的是这些功能的本人负责部分，**不默认曾实现对象放置、底层 C++、CUDA 或 RDMA**。需要补齐的是：**GPU 消费什么数据，以什么频率消费，哪些状态可以重算，哪些 I/O 会阻塞用户。**
+
+<a id="ecs-to-ai-storage"></a>
+
+### 从 ECS/ObjectScale 到 AI Storage：哪些能迁移，哪些必须新学
+
+| 已有经验（只按本人做过的部分讲） | 能迁移的工程判断 | 到冷 Prefix KV 场景时新增的前置 |
+|---|---|---|
+| ECS 跨 VDC chunk replication：源端推动复制到目标端 | 异步任务、数据完整性、部分失败后的重试与状态收敛 | 冷 KV 是请求触发的读取；控制端命中后还要完成 GPU buffer、layout 与设备可见性，且常受 TTFT 约束 |
+| ECS 在线 data migration / Tech Refresh | 源/目标状态、在线搬运和后台任务不能无限抢占资源 | 可重算 KV 不必照搬持久数据的保护等级；重算也要受 GPU 容量和在线 SLO 限制 |
+| ObjectScale Bucket 级 CRR | 对象身份与跨站复制的失败处理 | 同机房冷 KV 复用不是默认跨站 CRR；要另外证明保存、恢复比重算划算 |
+| Go telemetry | ECS/ObjectScale 运行数据的采集与统计分析 | 不把它写成队列定位或 GPU/RDMA 硬件测量经历 |
+| 线上问题定位 | 结合日志和 chunk 内 DT 表等状态分析 | 保留证据驱动的方法；新的 GPU/网络故障需要新环境的数据验证 |
+
+读正文前只需确认三个概念：① token→Prefill→每层 KV→Decode（§1～§5）；② 对象版本/Range→后端 bytes→host buffer 的前台读路径（[Document 2 §7]({{ '/docs/02_GPU_Data_Path/' | relative_url }}#s3-server-read-prereq)）；③ Java 引用或 direct buffer、C++ owning pointer/lease、pinned/registered/device memory 的存活与完成条件不是一回事（[Document 2 §2]({{ '/docs/02_GPU_Data_Path/' | relative_url }}#chapter-2)）。不要求先学整个训练平台。写入公开笔记时只放通用流程和自造数字，不贴公司代码、DT 表字段、内部架构图或客户数据。
 
 ### 本月贯穿主线：KV Cache × GPU Data Path × S3 over RDMA
 

@@ -9,7 +9,7 @@ description: 分布式 KV Cache 系统设计、面试答案与 Demo 规格。
 > Document 3 · 系统设计、面试答案与 Demo 规格  
 > 核实日期：2026-09-19。以下系统是**面试与 Demo 的 architecture proposal**，不是某厂商产品规格或已实测性能。
 > 面试版修订：2026-09-20。重点补充连续追问、容量落地、故障预算与闭卷验收；完整接口作为后续实现参考。
-> 2026-09-25：新增冷 Prefix 跨 S3/GPU 的案例、ECS/ObjectScale 项目卡和真实 S3 probe 规格；所有数值推演仍为教学输入。
+> 2026-09-25：新增冷 Prefix 跨 S3/GPU 案例，校准 ECS/ObjectScale 个人项目卡，并把可选 Demo 统一为 C++ 基线与模拟；所有数值推演仍为教学输入。
 
 ## 目录
 
@@ -747,26 +747,23 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 
 ### 7.4 用已有经验回答“你能带来什么”
 
-不要把模拟 Demo 说成生产 GPU/RDMA 经验。一个真实可用的表达是：
+你在 Dell EMC ECS/ObjectScale 的 **3 年 10 个月**以 Java 功能开发为主：ECS chunk replication、data migration / Tech Refresh，以及 ObjectScale Bucket 级 CRR。Go telemetry 是 ECS/ObjectScale 运行数据的采集和统计分析，**不是**用来定位 GPU/RDMA 队列或替代线上故障分析的经历；Python 用过，但不把未核对的具体模块归到它名下。生产排障主要结合日志和 chunk 内 DT 表等状态信息，公开表达只说明通用证据链，不披露内部表字段、代码或客户数据。
 
-> 我的主要经验在分布式对象存储的数据移动、复制、恢复和线上问题处理。最近准备的重点是 GPU 消费端的容量、布局、带宽与同步约束。我会用具体 KV 容量和搬运预算说明这些约束如何影响对象接口、后台任务、流控与故障恢复。CUDA/RDMA 的实操范围，我会按已经完成的实验如实说明。
+<a id="ecs-project-cards"></a>
 
-面试时用你已有、真实的项目补充“如何发现瓶颈、如何保证 partial failure 下正确性、如何限制后台任务影响在线流量”，不需要重讲 ECS/ObjectScale 全架构。
+### 三张项目卡：本人完成的部分 → 新场景会变什么
 
-准备三张真实项目卡即可：一次大规模迁移/恢复、一次性能排障、一次 partial failure。每张按“约束 → 关键决定 → 为什么没选另一方案 → 如何验证 → 实际结果”组织。映射到 AI 场景时只补变化：源/目标多了 GPU buffer，完成多了设备可见性，后台预算要保护 TTFT/ITL，可重算 KV 的耐久等级可以不同。避免只说“分布式系统是通用的”。
+先在私有材料里为每张卡填入“本人负责的 Java 设计/代码 → 实际约束或故障 → 日志与状态证据 → 采取的决策 → 可核实的验证和结果”。没有本人证据的一格留空，不用团队整体成果补齐，也不虚构吞吐提升数字。公开教程只提供抽象面试题：
 
-对 Dell ECS/ObjectScale 的 **3 年 10 个月**经历，可以从已做过的项目中选两张卡，不必临时虚构 GPU 项目：
-
-| 已有工作，按实际负责部分讲 | 本人可提供的证据 | 在本题中对应的追问 |
+| 真实工作卡 | 面试时可拿自己的材料证明什么 | 迁移到 AI Storage 后必须重新判断 |
 |---|---|---|
-| ECS 跨 VDC chunk 复制、Journal replay、Remote Read / 远端恢复 | 复制与恢复的提交顺序、异常定位、重试和数据校验；用真实故障材料补一个结果 | S3 端 partial read、重试幂等、源副本损坏或不可达时如何降级 |
-| ECS AFA Gen3→Gen4 Tech Refresh | 参与设计、完成 ECS 侧主要代码和 happy-path 端到端自动化；用实际约束与结果补足 | 在线搬运与后台限速如何避免占满服务带宽，迁移时怎样验证不漏数据 |
-| ObjectScale 的 Bucket 级 CRR | 按本人实际职责说明对象语义、跨站复制和服务化集成，不把其他团队底层工作写到自己名下 | Namespace/version、对象可见性、失败恢复与 KV 冷层多副本的取舍 |
+| ECS 跨 VDC chunk replication | 源端推动到目标端的异步复制、状态与失败重试；若涉及 Journal replay / Remote Read，仅讲亲自承担的部分 | 冷 KV 的 Range GET 是前台拉取；完成需校验、正确 layout、设备可见并满足 TTFT，而非只确认复制任务结束 |
+| ECS 在线 data migration / Tech Refresh | 参与设计、ECS 侧代码与端到端 happy-path 自动化；用实际材料说明怎样校验迁移和控制后台影响 | 可重算缓存与持久数据的保护等级不同；重算会占 GPU，不能把“失败就重算”当免费回退 |
+| ObjectScale Bucket 级 CRR | 按本人职责说明对象身份、跨站复制和错误处理，不把底层或其他团队实现揽过来 | 跨站副本语义不能直接搬到同机房冷 KV；需要基于复用价值、对象版本、恢复 SLO 决定放置 |
 
-**90 秒口述骨架：**“我在 ECS/ObjectScale 主要用 Java、Go、Python 做对象存储的数据移动、复制与恢复。在 `[具体项目]` 中，我负责 `[本人负责的设计/代码]`，遇到 `[实际约束或故障]`，通过 `[决策和验证]` 得到 `[可核实结果]`。迁移到 KV 冷层，我会沿用对完整性、重试和后台流控的经验，同时新增加 GPU buffer 生命周期、layout 与设备可见性的验证。CUDA/RDMA 实测我会按已完成范围说明。”方括号只填真实材料，不能把面试设计或模拟写成生产成果。
+**90 秒口述骨架：**“我主要用 Java 开发 ECS/ObjectScale 的复制和在线迁移相关功能；Go 做过运行数据 telemetry 采集与统计，也用过 Python。以［具体需求］为例，我负责［本人代码/设计］；依据［实际日志和 chunk 状态证据］处理［约束或故障］，用［实际验证］得到［可核实结果］。转到冷 KV 数据路径，我能把已有的数据完整性、失败恢复与后台资源约束迁过去，但 GPU buffer 的 lifetime、layout、设备可见性和 RDMA 服务端集成属于要另行实现与验证的部分。”不要把这段骨架背成尚未发生的项目经历。
 
-若 Demo 尚未实现，说“已完成设计和预算分析”；模拟通过后再说明验证过的状态机/故障场景；只有真实设备实验完成后才描述硬件路径结果。不要直接背诵任何超出个人实际经历的完成态。
-
+若 C++ Demo 尚未实现，就说已经完成设计与预算；真实 S3→host 基线通过后只能说验证了主机路径；模拟状态机通过后可说验证了相应故障条件。只有真实 GPU/RDMA 环境的端到端证据才能写硬件路径结果。
 <a id="kv-system-diagnostics"></a>
 
 ### 7.5 用两个反例练习诊断，不增加知识范围 — MUST KNOW
@@ -822,22 +819,24 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 
 本章是可以交给 Codex CLI 的实现规格。**本次只设计，不生成完整代码。** 目标是展示你懂 KV identity、分层、数据移动与故障，不是一个月内重写 vLLM。
 
-**本月必读仅为：**§8.1 明确模拟边界、§8.5 三条 flow、§8.11 最小展示；面向 KV × S3 × GPU 岗位再读 §8.12 的真实 S3 probe。其余接口和场景是后续实现参考。Demo 不作为开始投递的前置条件；理解设计并能口述失败路径就能用于系统设计面试。
+**本月必读仅为：**§8.1 的语言与证据边界、§8.12 的 C++ S3→host 基线、§8.11 的可选模拟实验；§8.5 的三条 flow 用于系统设计口述。其余接口与场景供后续实现参考。Demo 不作为开始投递的前置条件。
 
-### 8.1 第一版到底模拟什么
+### 8.1 先交付什么，哪些只能模拟
 
-第一版在普通 CPU 环境运行：使用确定性生成的 bytes 表示 KV payload，FakeGpuTier 表示有限 HBM 容量，用事件调度器模拟 transfer 完成。**没有真实 attention kernel、没有真实 GPU HBM、没有真实 RDMA，也不能报告真实 tokens/s。**
+普通 CPU 环境分两步：M0 用 C++ 做**真实 S3→host** 的 GET/Range/校验；M1 才用确定性生成的 bytes 表示 KV、FakeGpuTier 表示有限 HBM 容量，以事件模型模拟 transfer 完成。**两个阶段都没有真实 attention kernel、GPU HBM 或 RDMA；不报告真实 tokens/s。**
 
 两种运行模式严格区分：
 
 | 模式 | 数据与时间来源 | 可以证明什么 |
 |---|---|---|
-| `simulation` | 参数化模型、确定性事件、可选小 payload 校验 | 策略、容量、并发、状态机、故障行为和假设下的代价 |
-| `integration` | 真实 S3 GET/PUT 与 host buffer | S3 语义、序列化、校验、重试和实际 host 路径成本 |
+| integration（M0） | 真实 S3 GET/PUT 与 host buffer | S3 语义、校验、重试和实际 host 路径成本 |
+| simulation（M1） | 参数化模型、确定性事件、可选小 payload 校验 | 策略、容量、并发、状态机、故障行为和假设下的代价 |
 
 **禁止把 simulation 的 MockRdmaDataPath 延迟与 integration 的真实 S3 耗时画在同一性能排名中，声称 RDMA 更快。** Simulation 内可以比较两套明确披露的模型参数，结果只代表输入假设。
 
-结合你的背景，第一版默认用熟悉的 Java 写 manager、策略、事件和 S3 适配，接口保持语言无关。Java 的 GC 也不能代替模拟 allocation 的 lease/release 协议：逻辑槽位是否可重用仍必须由应用明确判断。后续真实 CUDA/RDMA 单独做 C++/CUDA 小实验，再决定跨语言集成；JNI 等绑定细节本月跳过。若明确希望以 Demo 练 C++，可改为 C++，但要单独计入构建和语言学习时间。
+<a id="cpp-demo-scope"></a>
+
+**实现语言改为 C++17/20 + CMake，覆盖真实 S3→host 基线和最小状态机模拟。** Java 是已有生产开发经验，但本 Demo 不以 Java/Go 包裹一个“以后再用 C++ 重写”的核心链路。先交付少量可编译、可测试的 C++ 类型：对象请求、拥有 payload 的 buffer/lease、transfer attempt 与完成状态；用 RAII 保护资源，异步完成之前不返还底层槽位。不要求一个月内精通现代 C++、实现 CUDA kernel 或写 RDMA driver。普通 CPU 机器可完成 S3 与模拟测试；真实 GPU/RNIC、支持扩展的 S3 endpoint 到位后才尝试 cuObject 等 C++ 集成，不能把普通 C++ S3 SDK 请求称为 S3 over RDMA。
 
 ### 8.2 组件架构
 
@@ -974,8 +973,8 @@ KVCacheManager
 
 | Milestone | 交付 | 完成标准 | 本月级别 |
 |---|---|---|---|
-| M0：Core simulation | Key、tier、lease、LRU、事件式异步、checksum | 命中/miss/eviction/offload/prefetch/promotion 全部可复现；故障不变量成立 | SHOULD KNOW，时间允许再实现 |
-| M1：S3DataPath | 真实 PUT/GET/Range 与 metadata 格式，独立 integration 模式 | 小 payload roundtrip 正确；partial/timeout 不发布；报告实际 host 路径 | SHOULD KNOW |
+| M0：C++ S3→host 基线 | CMake、C++ S3 客户端、PUT/GET/Range、checksum 与耗时分解 | 固定输入可复现，校验正确；只报告真实 host 路径 | 选择实作时优先 |
+| M1：C++ 最小状态机模拟 | Key、容量池、RAII lease、事件完成、late completion 隔离 | §8.11 的三个小实验和故障不变量通过；结果明确标为 simulation | M0 后有余力再做 |
 | M2：CUDA adapter | 真实 device/pinned pools、stream/event；替换 FakeGpuTier | 验证 H2D/D2H、生命周期与计时；仍不宣称 RDMA | NICE TO KNOW |
 | M3：libibverbs host path | MR/QP/CQ、SEND/READ/WRITE、注册池 | 两节点或合适环境下字节正确、错误可回收；软件 RDMA 仅功能验证 | NICE TO KNOW |
 | M4：GPUDirect RDMA | 支持硬件的 GPU registration、RNIC↔GPU、ordering | 用真实路径证据证明无 client host bounce，校验 consumer 结果 | 本月 SKIP FOR NOW |
@@ -983,11 +982,11 @@ KVCacheManager
 
 这些是逐步验证的方向，不要求为了用 cuObject 先自己实现所有驱动/verbs 层。实际有可用库时优先复用；你需要理解边界，不必重写它们。
 
-**日历建议：**M0/M1 合计先设 3～5 个工作日上限。若已经占用复习时间，保留设计与模拟规格开始投递；真实硬件扩展不应成为投简历前置门槛。
+**日历建议：**先给 M0 的编译、SDK 接入和正确性验证设 3～5 个工作日上限；C++ 新手遇到环境问题时缩小到单次 Range GET 与校验，M1 不应挤掉投递和项目复习。真实硬件扩展不设为投简历前置门槛。
 
 ### 8.8 Benchmark plan
 
-先有基线：无外层缓存、miss 全重算；再加 CPU tier；再加 object tier；最后才改传输路径。相同 workload seed、key/geometry、内存预算与策略下比较。
+对 M0，先固定 endpoint、对象、Range 与校验，分别扫描请求大小和并发，报告真实 host 路径。对 M1，才在同一参数化 workload 下比较无外层缓存、CPU tier、object tier 与传输模型；相同 seed、key/geometry、内存预算与策略下比较，不把 M1 的时间混进 M0 实测。
 
 | 扫描维度 | 建议取值 | 想观察什么 |
 |---|---|---|
@@ -1024,7 +1023,7 @@ KVCacheManager
 
 ### 8.10 交给 Codex CLI 的执行边界
 
-可以直接让 Codex 以本章为规格，从 M0 开始：先输出模块划分与实现计划，然后实现状态机、接口和小尺寸 workload；完成 correctness 场景后再加 M1。保持配置中的 `simulation/integration` 标记，禁止把 MockRdma 结果表述为真实网络性能。
+可以让 Codex 以本章为规格，先输出 C++17/20 + CMake 的最小模块与依赖计划：M0 实现真实 S3→host Range GET/校验，M1 再加共享接口下的 lease、状态机和小尺寸 workload。保留配置中的 simulation/integration 标记，分别测试；禁止把 MockRdma 的参数化时延画成真实网络性能。
 
 首版不引入真实大模型、Kubernetes、分布式共识、多区域复制或真实 RDMA driver。需要的扩展接口已保留，但不创建一堆无功能的抽象类。README 应解释每个实验能证明和不能证明什么。
 
@@ -1042,25 +1041,29 @@ KVCacheManager
 | 恢复不划算 | 同一 workload 分别用高/低带宽模型，或调低重算成本 | 临界点一侧恢复、另一侧重算；显示输入假设和分解时间 |
 | 部分失败与迟到写 | 旧 attempt 写一半超时，新 attempt 到独立目标，旧事件随后到达 | 旧目标一直隔离、新目标 checksum 正确、最终没有遗留 lease |
 
-做到这三条，就已有可讲的实现证据；尚未做到时，可按设计题口述预期，不宣称实验通过。真实 S3、全量 benchmark 矩阵、CPU/GPU 适配与集群目录分开扩展。§8.9 的完整 correctness 表作为扩展时的验收清单。
+这三条属于 **M1 的模拟正确性证据**；若只完成 M0，就只展示真实 S3 Range GET、checksum 和 host 路径耗时，不宣称已经验证 KV 状态机。尚未实现时按设计题口述预期，不宣称实验通过。真实 GPU、全量 benchmark 矩阵和集群目录另行扩展；§8.9 的完整 correctness 表作为扩展验收清单。
 
 <a id="s3-host-probe"></a>
 
-### 8.12 对象存储岗位的最短真实链路 — SHOULD KNOW
+### 8.12 C++ 真实 S3→Host 基线与硬件扩展边界 — SHOULD KNOW
 
-若有 3～5 天实作时间，可以先做**独立的真实 S3 probe**，不必等模拟器的所有 tier、策略和接口实现完：用熟悉的 Java 或 Go SDK 向测试桶写入确定性 8/64 MiB 对象，记录不可变 key 或支持时的 version ID，再做完整 GET 与 Range GET；以自行计算的内容 checksum 验证字节、范围与重试结果。不要把 multipart ETag 无条件当作内容 MD5。[AWS 对 ETag 与校验的说明](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html)
+<a id="cpp-s3-probe"></a>
 
-在固定 endpoint、数据量与并发下测 `GET submit→host buffer 完整且校验通过` 的 p50/p99、请求数、有效 payload 吞吐与 CPU/DRAM；分别改变 Range 大小、并发和重复读取。保存原始结果、环境与单位。**这项真实实验只证明 S3→host 路径**；没有 NVIDIA GPU 时不输出 H2D 或 GPU-ready 实测，没有双方支持的 cuObject/RDMA 环境时不输出真实 S3 over RDMA 对照。再用 M0 的事件模拟展示 §8.11 三条策略/故障实验，报告中把两种证据分开。真实硬件到位后，才在相同对象、range、并发和校验条件下加 GPU 路径 A/B 测试。
+有实作时间时，先用 **C++17/20 + CMake** 和 [AWS SDK for C++ 的 S3 示例](https://docs.aws.amazon.com/code-library/latest/ug/cpp_1_s3_code_examples.html)构建独立的真实 S3 probe；若使用 S3-compatible endpoint，单独核对 endpoint 配置和 Range/校验兼容性。向测试桶写入确定性的 8/64 MiB 对象，记录不可变 key 或支持时的 version ID，再做完整 GET 与 Range GET；自行计算内容 checksum 核对字节、范围和重试结果。不要把 multipart ETag 无条件当作内容 MD5。[AWS 对 ETag 与校验的说明](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html)
+
+在固定 endpoint、对象和并发下测从 GET 提交到 **host buffer 完整且校验通过** 的 p50/p99、有效 payload 吞吐与 CPU/DRAM；分别改变 Range 大小和在途请求，保存原始记录、软件版本和单位。M0 只证明 C++ S3→host 的真实路径；M1 用相同 C++ transfer 接口模拟注册/lease、部分失败与迟到写，但模拟数值不能与 M0 性能排名。没有 GPU/RNIC 时不报告 H2D、GPU Ready 或 RDMA 吞吐。
+
+真正接入对象到 GPU 的 RDMA 路径需要两端支持：[cuObjClient](https://docs.nvidia.com/gpudirect-storage/cuobject/cuObjClient-api/index.html) 与 [cuObjServer](https://docs.nvidia.com/gpudirect-storage/cuobject/cuObjServer-api/index.html)当前公开的是 C++ 接口，涉及注册 buffer、协商描述符、服务端集成与完成回收。**普通 C++ S3 SDK + 一台 RDMA NIC 不会自动完成这项集成。** 硬件和服务端条件具备后，再对相同对象/Range/校验做 host 与 GPU 路径 A/B，并单独证明真实 data plane。
 
 ### Interview Check
 
 **30 秒回答 — What does your Demo demonstrate?**
 
-> It demonstrates a tiered KV cache manager with explicit identities, buffer leases, asynchronous transfers and failure-safe publication. The first version models GPU and RDMA behavior and separately tests real S3 I/O. It validates policies and correctness, while real GPU-direct performance remains a later hardware-specific experiment.
+> The proposed C++ demo starts with a verified S3 Range GET into host memory. Its optional state-machine simulation can test buffer leases, retries and late completions, but cannot measure RDMA speed. A real GPU-direct path requires compatible client and server integration plus supported hardware.
 
 **2 分钟回答**
 
-Demo 的核心是稳定接口和可复现行为：KV key 绑定模型与前缀，manager 管 GPU/CPU/object 三层，策略决定保留与预取，data path 负责异步搬运。第一版用小尺寸 bytes 和事件模型模拟 GPU 与 RDMA，使普通机器就能触发容量压力、eviction 和 late completion；S3 integration 则真实验证 PUT/GET 与校验，但单独计时。重点展示四个证据：命中链路、源/目标 lease、半块不发布、超时后旧 DMA 不污染新请求。性能报告披露模型输入，保留低复用下负收益。未来可以按同一接口换成 CUDA、verbs、GDR 或受支持 cuObject 集成，但不会把模拟路径包装成真实硬件经验。
+方案以 C++ 为唯一核心实现语言：M0 真实验证 S3 Range GET→host buffer 的内容、范围、重试和耗时；有余力再用 M1 的小尺寸 bytes 与事件模型验证 KV key、容量、lease、半块不发布和超时后旧写不污染新请求。只有做过的阶段才能用完成时态描述，M0 实测与 M1 模拟分开报告，模型参数和负收益都披露。真正 GPU/RDMA 对照须在支持的硬件及对象服务端另行完成；MockRdma 或现成 S3 SDK 请求不是 GPU-direct 性能证据。
 
 **Deep Dive**
 

@@ -197,6 +197,8 @@ auto b = std::move(a);
 
 **工具链停止线：**本月会区分 `.cpp` host 编译与 `.cu` 的 CUDA 编译流程，理解 CMake target/link library，能用 gdb/lldb 看 host 堆栈和 use-after-free，知道 GPU 错误需要 CUDA 工具定位即可。不要先投入模板库和构建系统改造。
 
+<a id="gpu-buffer-lifetime"></a>
+
 ### 2.7 Java 开发者最需要做的一道代码阅读题 — MUST KNOW
 
 下面是接口示意，`pool.borrow()` 返回一个 RAII lease，析构会把槽位还池，**该教学 pool 不自动等待设备**；`submit_h2d` 仅保存借用的地址并提交异步操作。
@@ -340,6 +342,8 @@ sequenceDiagram
 UVA 是地址问题；Unified Memory 是驻留/访问管理问题；GPUDirect 是设备间数据路径问题。三者相关但不能互换。现代硬件一致性、HMM、ATS 等会改变具体路径，本月只需知道“平台特定”，不要背“统一内存一定拷贝”或“一定不拷贝”。[CUDA Unified and System Memory](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/understanding-memory.html)
 
 **为什么 cache manager 常用显式分配与搬运？** 它需要知道某块在哪、需要多少带宽、何时可用、何时回收；隐式缺页迁移可能把等待藏进 kernel，增加不可预测性。Unified Memory 适合某些开发和工作负载，但不会自动替你实现 prefix 热度、租户配额与 deadline。
+
+<a id="gpu-double-buffer"></a>
 
 ### 3.7 双缓冲不是两个指针：用四个 chunk 走时间轴 — SHOULD KNOW
 
@@ -590,6 +594,8 @@ RoCE 部署要理解 congestion、ECN、PFC、丢包/重传与 head-of-line bloc
 排障顺序：link/MTU/GID/路由 → QP state → MR 范围与权限 → RECV/credits → CQ status → 拓扑与 NUMA → 拥塞/重试计数 → 应用时序。吞吐问题先排除每请求 register/deregister、过小 WR、CQ poll 不及时及不够的在途数据。
 
 **安全边界：**rkey 是硬件访问能力的一部分，不是 TLS 密钥，也不自动提供租户身份认证或链路加密。控制通道需要鉴权，descriptor 应限制范围、权限和寿命，payload 的安全要看实际网络/协议能力。
+
+<a id="rdma-verbs-lifecycle"></a>
 
 ### 5.9 把 verbs 名词填进一份实际工作描述 — MUST KNOW
 
@@ -846,6 +852,8 @@ RDMA 可以高效写入一段远端内存，但它不负责定义：对象在哪
 
 也要承认边界：SDK 扩展可能影响中间代理、签名、重试、加密和兼容测试；普通 S3/TCP fallback 必须有明确协商，不能静默宣称 direct。
 
+<a id="gpu-kv-layout"></a>
+
 ### 7.8 “直接搬到 GPU”之后，谁把 bytes 变成可用 KV — MUST KNOW
 
 假设对象里存着一个 64 MiB 的全层 transfer chunk，而 attention 在 GPU 上需要按层分散的 KV pages。**直达 GPU 解决目的地访问能力，不解决所有格式适配。** 面试时给出两个能落地的候选即可：
@@ -878,6 +886,8 @@ CPU 解压是另一个选择点：如果存储格式必须在 CPU 上解码，�
 3. **Q：部分 RDMA transfer 失败后直接 TCP 重试到同一个 buffer？** A：先确保旧 DMA 不再访问该区域，或使用隔离的新 allocation。晚到写不能靠一次 checksum 检查永久规避。
 
 **Common Trap：**S3 over RDMA 是统一通用标准；S3 GET 一定对应 RDMA READ；server memory→RNIC→GPU 就代表 SSD 也零拷贝；HTTP TLS 自动覆盖 RDMA payload。
+
+<a id="s3-range-get-gpu-ready"></a>
 
 ### 7.9 贯穿案例：一个冷 KV Range GET 怎样变成 GPU Ready — MUST KNOW
 
@@ -918,6 +928,8 @@ CPU 解压是另一个选择点：如果存储格式必须在 CPU 上解码，�
 | NIC/CQ 错误与拥塞计数 | 网络重试、QP/receive/credit 问题 |
 
 一个 NIXL/UCX 等传输抽象层可以封装多种后端，降低上层耦合，但不替代 cache policy 和存储语义。本月知道它的层次即可。[NVIDIA NIXL 官方仓库](https://github.com/ai-dynamo/nixl)
+
+<a id="gpu-path-performance"></a>
 
 ### 8.2 给出证据后，下一步应如何改变 — MUST KNOW
 

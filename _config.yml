@@ -1,6 +1,6 @@
 title: AI Storage Notes
-tagline: AI Storage、KV Cache 与 GPU Data Path 面试教程
-description: 面向存储工程师的 AI Storage、KV Cache、GPU Data Path 与系统设计教程。
+tagline: KV Cache、GPU Data Path 与 S3 over RDMA 面试教程
+description: 面向对象存储工程师的 KV Cache、GPU Data Path、S3 over RDMA 与系统设计教程。
 
 url: "https://miauyle.github.io"
 baseurl: "/ai-storage-notes"

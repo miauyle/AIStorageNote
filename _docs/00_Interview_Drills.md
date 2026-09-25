@@ -37,27 +37,27 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 
 | # | 闭卷任务 | 时间 | 核对位置 |
 |---:|---|---:|---|
-| 1 | 解释为什么缓存 K/V 而不是长期缓存旧 Q；说明有 KV 后仍未消失的工作 | 3 分钟 | [Document 1 §1](/docs/01_AI_Storage_KV_Cache/#chapter-1) |
-| 2 | 写出 KV payload 公式；计算 `L=32,Hkv=8,D=128,T=8192,FP16` | 4 分钟 | [Document 1 §4](/docs/01_AI_Storage_KV_Cache/#chapter-4) |
-| 3 | 把上题改成 MHA 的 32 个 KV heads，再算 100 并发 | 3 分钟 | [Document 1 §4](/docs/01_AI_Storage_KV_Cache/#chapter-4) |
-| 4 | 画 Prefill、Decode 时间轴，分别标出主要服务指标 | 3 分钟 | [Document 1 §3](/docs/01_AI_Storage_KV_Cache/#chapter-3) |
-| 5 | 解释 PagedAttention 解决和没有解决的问题 | 3 分钟 | [Document 1 §5](/docs/01_AI_Storage_KV_Cache/#chapter-5) |
-| 6 | 比较 pageable→GPU、pinned→GPU、RNIC→GPU 三条路径 | 5 分钟 | [Document 2 §3～4](/docs/02_GPU_Data_Path/#chapter-3) |
-| 7 | 一个 H2D async API 已返回，分别说明 host 源和 device 目标何时能复用 | 3 分钟 | [Document 2 §2～3](/docs/02_GPU_Data_Path/#chapter-2) |
-| 8 | 沿一次 RDMA WRITE 串起 PD/MR/QP/WR/SGE/lkey/rkey/CQ | 5 分钟 | [Document 2 §5](/docs/02_GPU_Data_Path/#chapter-5) |
-| 9 | 区分 GPUDirect RDMA、GDS 和 GPU-aware Object Storage | 4 分钟 | [Document 2 §6～7](/docs/02_GPU_Data_Path/#chapter-6) |
-| 10 | 计算 64 MB 在 100/200/400 Gbps 上的理论下界 | 3 分钟 | [Document 3 §6](/docs/03_System_Design_Interview_Demo/#chapter-6) |
-| 11 | 走一次 object hit→GPU ready；说出至少四个不能省略的状态 | 5 分钟 | [Document 3 §3](/docs/03_System_Design_Interview_Demo/#chapter-3) |
-| 12 | timeout 后旧 RDMA WRITE 可能迟到，设计安全 retry | 4 分钟 | [Document 3 §5](/docs/03_System_Design_Interview_Demo/#chapter-5) |
+| 1 | 解释为什么缓存 K/V 而不是长期缓存旧 Q；说明有 KV 后仍未消失的工作 | 3 分钟 | [Document 1 §1]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-1) |
+| 2 | 写出 KV payload 公式；计算 `L=32,Hkv=8,D=128,T=8192,FP16` | 4 分钟 | [Document 1 §4]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-4) |
+| 3 | 把上题改成 MHA 的 32 个 KV heads，再算 100 并发 | 3 分钟 | [Document 1 §4]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-4) |
+| 4 | 画 Prefill、Decode 时间轴，分别标出主要服务指标 | 3 分钟 | [Document 1 §3]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-3) |
+| 5 | 解释 PagedAttention 解决和没有解决的问题 | 3 分钟 | [Document 1 §5]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-5) |
+| 6 | 比较 pageable→GPU、pinned→GPU、RNIC→GPU 三条路径 | 5 分钟 | [Document 2 §3～4]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-3) |
+| 7 | 一个 H2D async API 已返回，分别说明 host 源和 device 目标何时能复用 | 3 分钟 | [Document 2 §2～3]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-2) |
+| 8 | 沿一次 RDMA WRITE 串起 PD/MR/QP/WR/SGE/lkey/rkey/CQ | 5 分钟 | [Document 2 §5]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-5) |
+| 9 | 区分 GPUDirect RDMA、GDS 和 GPU-aware Object Storage | 4 分钟 | [Document 2 §6～7]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-6) |
+| 10 | 计算 64 MB 在 100/200/400 Gbps 上的理论下界 | 3 分钟 | [Document 3 §6]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-6) |
+| 11 | 走一次 object hit→GPU ready；说出至少四个不能省略的状态 | 5 分钟 | [Document 3 §3]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-3) |
+| 12 | timeout 后旧 RDMA WRITE 可能迟到，设计安全 retry | 4 分钟 | [Document 3 §5]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-5) |
 
 ### 诊断后的分流
 
 - 第 1～5 题任一为 0：从 Document 1 开始，不先读系统设计。
 - 第 6～9 题任一为 0：Document 2 的 ownership、CUDA 顺序和 RDMA lifecycle 不可跳过。
 - 第 10～12 题任一为 0：先重走 Document 3 的 performance model 和状态机，再做 45 分钟设计。
-- 全部至少 2 分：停止顺序重读，直接进入下面七条追问链和目标 JD 校准。
+- 全部至少 2 分：停止顺序重读，直接进入下面八条追问链和目标 JD 校准。
 
-## 2. 七条追问链
+## 2. 八条追问链
 
 每次只练一条链。L1 是开场，L2 要求机制或计算，L3 会改变条件，不能复读原答案。
 
@@ -68,7 +68,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 3. **L3：**56 GiB KV budget、40 个 8K 请求初始可容纳；若每个还生成 4K，是否仍安全？必须重算并保留运行时余量。
 4. **反例：**启用 PagedAttention 后仍 OOM。列出“真实工作集增长、allocator 保留、资源泄漏”三类可证伪假设。
 
-核对：[Document 1 §1、§4](/docs/01_AI_Storage_KV_Cache/#chapter-1)；[Document 3 §7.5](/docs/03_System_Design_Interview_Demo/#chapter-7)。
+核对：[Document 1 §1、§4]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-1)；[Document 3 §7.5]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-7)。
 
 ### 链 B：分页、共享、分层分别省什么
 
@@ -77,7 +77,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 3. **L3：**1 GiB prefix，恢复固定成本 5 ms；分别在 8、20、40 GiB/s 下与 60 ms 重算比较。
 4. **反例：**远端 hit rate 90%，TTFT p50 改善但 ITL p99 变差。给出区分争用与调度变化的实验。
 
-核对：[Document 1 §5～7](/docs/01_AI_Storage_KV_Cache/#chapter-5)；[Document 3 §7.5](/docs/03_System_Design_Interview_Demo/#chapter-7)。
+核对：[Document 1 §5～7]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-5)；[Document 3 §7.5]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-7)。
 
 ### 链 C：Host 数据怎样安全进入 GPU
 
@@ -86,7 +86,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 3. **L3：**copy event 已完成但 consumer kernel 尚未完成；源和目标分别能否回池？
 4. **代码阅读：**异步函数只保存裸指针，调用方的两个 RAII lease 在函数退出时析构。指出两个独立 lifetime bug。
 
-核对：[Document 2 §2～4](/docs/02_GPU_Data_Path/#chapter-2)。
+核对：[Document 2 §2～4]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-2)。
 
 ### 链 D：RNIC 怎样合法完成一次远端访问
 
@@ -95,7 +95,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 3. **L3：**本地 completion 成功后，远端应用为何可能仍不知道数据已就绪？设计通知和发布顺序。
 4. **故障：**调用者 timeout 后是否可立即 deregister MR？说明必须等待或撤销什么。
 
-核对：[Document 2 §5](/docs/02_GPU_Data_Path/#chapter-5)。
+核对：[Document 2 §5]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-5)。
 
 ### 链 E：GPU-direct 改了哪一段路径
 
@@ -104,7 +104,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 3. **L3：**确认 direct path 生效、host DRAM traffic 降低，但 end-to-end latency 不变。按优先级列出下一轮实验。
 4. **布局题：**对象是连续 64 MiB blob，attention 需要分散 pages；比较直接 scatter 与 GPU staging+转换。
 
-核对：[Document 2 §6～8](/docs/02_GPU_Data_Path/#chapter-6)。
+核对：[Document 2 §6～8]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-6)。
 
 ### 链 F：对象语义怎样与 RDMA data plane 共存
 
@@ -113,7 +113,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 3. **L3：**一次 PUT 的 RNIC READ completion 成功，为什么仍不能立即向用户报告对象已耐久？
 4. **安全题：**descriptor 泄漏或迟到写可能造成什么？说明权限、范围、generation 和物理隔离各能解决什么、不能解决什么。
 
-核对：[Document 2 §7](/docs/02_GPU_Data_Path/#chapter-7)。
+核对：[Document 2 §7]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-7)。
 
 ### 链 G：把系统设计闭合
 
@@ -122,7 +122,19 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 3. **L3：**对象层失效后所有 miss 改为重算。如何避免 Prefill 风暴拖垮仍在 Decode 的请求？
 4. **规模题：**目录 page 粒度产生 512 次 lookup；在不改变 GPU page 大小的前提下降低 metadata 放大。
 
-核对：[Document 3 §1～6](/docs/03_System_Design_Interview_Demo/#chapter-1)。
+核对：[Document 3 §1～6]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-1)。
+
+### 链 H：冷 Prefix KV 怎样经 S3 进入 GPU — 目标岗位主线
+
+沿用 `L=32,Hkv=8,D=128,FP16` 的 8K prefix：payload 为 1 GiB，分成 16 个 64 MiB 逻辑传输块。面试官改变一个条件时，应沿**同一个请求**继续推导，不拆成三道名词题。
+
+1. **L1：**哪些请求该留 HBM，哪些适合 P/D 直接交接，哪些冷 Prefix 值得写 S3？假设现在目录命中冷 Prefix，先回答是否恢复。
+2. **L2：**有效 8 GiB/s、固定及转换 8 ms、重算 400 ms。算简化 load-to-ready，再沿 `S3 Range GET → 服务端读取/EC → TCP/Host 或 RDMA/GPU → layout → READY` 画完整路径，标注源/目标与校验。
+3. **L3：**重算突然降到 60 ms，或后端 EC read amplification 令对象→Host 只有 2 GiB/s。分别重新决策；RDMA 能省掉哪段，为什么它可能救不了后端瓶颈？提出一个 A/B 测量。
+4. **故障：**RDMA 只写完一半便 timeout；同时第二个请求复用同一 Prefix。怎样隔离旧目标、single-flight/独立 retry、控制重算风暴，并确认何时可以发布或回收 buffer？
+5. **证据：**报告 `load-to-GPU-ready p99`、TTFT/ITL goodput、避免的 Prefill GPU 时间、对象读放大及 host/PCIe/NIC 流量。若手上只有 Mac 上的真实 S3→Host probe 和 CPU 模拟，应分别说明它们能证明什么。
+
+核对：[Document 1 §7.4]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#chapter-7) → [Document 2 §7.9]({{ site.baseurl }}/docs/02_GPU_Data_Path/#chapter-7) → [Document 3 §1.6、§8.12]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#chapter-1)。
 
 ## 3. 随机算题生成器
 
@@ -153,7 +165,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 
 ## 4. 英文口述
 
-下列十题各录制一次 30 秒和一次 2 分钟版本。2 分钟版本采用：`definition → mechanism/path → quantitative example → boundary/tradeoff`。
+下列十一题各录制一次 30 秒和一次 2 分钟版本。2 分钟版本采用：`definition → mechanism/path → quantitative example → boundary/tradeoff`。
 
 1. What is KV Cache, and why is it a capacity bottleneck?
 2. How do Prefill and Decode create different storage requirements?
@@ -165,6 +177,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 8. How can S3 semantics coexist with an RDMA data plane?
 9. When is an asynchronously loaded GPU buffer safe to consume and reuse?
 10. How would you design and validate a GPU-aware distributed KV cache?
+11. When should a reusable KV prefix be restored from S3 to GPU memory instead of recomputed, and what makes it safe to consume?
 
 录音复核只检查四件事：是否先回答问题、是否出现一个具体机制、是否有一个数字/时序、是否主动给出边界。不要把中文答案逐字翻译成长句。
 
@@ -175,7 +188,7 @@ description: 用诊断、随机变体、限时口述和错题复测，把三份�
 | Day 7 | 链 A/B；两组随机 KV 算题；画分页共享图 | 容量与共享计算均正确，能解释 restore vs recompute |
 | Day 14 | 链 C/D；画三条 GPU path 与一次 RDMA WRITE | source/target lifetime、lkey/rkey 和 completion 无方向错误 |
 | Day 21 | 链 E/F；64 MB/64 MiB 传输题；一次故障重试 | 不混淆 GDR/GDS/S3，不把 timeout 当硬件停止 |
-| Day 26 | 45 分钟系统设计 + 15 分钟追问 | workload、预算、状态机、失败和验证全部闭合 |
+| Day 26 | 45 分钟系统设计 + 15 分钟追问，包含链 H | 同一冷 Prefix 从恢复/重算走到 GPU Ready，预算、状态机、失败和验证全部闭合 |
 | Day 29 | 随机十题，其中五题用英文 | 每题至少 2 分；核心不变量无 0 分 |
 
 ## 6. 错题记录模板

@@ -1,6 +1,6 @@
 # AI Storage 一个月面试冲刺教程
 
-> 面向有 Dell ECS/ObjectScale 开发经验、主要使用 Java/Go/Python 的工程师。
+> 面向 Dell ECS/ObjectScale 工程师：Java 为复制/迁移/CRR 功能开发主力；Go 用于运行数据 telemetry 采集与统计，Python 曾用于工作。
 > 面试主线修订：2026-09-25 · 中文教程，保留英文术语与英文短答。
 >
 > 目标：用约一个月准备 KV Cache × GPU Data Path × S3 over RDMA 交汇处的存储岗位，并在准备过程中开始针对性投递。
@@ -20,6 +20,8 @@
 
 **贯穿案例：**假设一个可复用的 8K Prefix 有 1 GiB KV payload，聚合为 16 个 64 MiB 逻辑块。先决定恢复还是重算，再区分 S3→Host→GPU 基线与双方支持时的 S3 控制请求 + RDMA→GPU 路径；最后证明完整性、布局与设备可见，才发布 GPU Ready。Prefill→Decode 的即时交接优先另行比较直接网络传输，活跃 Decode 不能默认逐 token 从对象层取 KV。
 
+先看[从 ECS/ObjectScale 到 AI Storage 的前置地图](_docs/01_AI_Storage_KV_Cache.md#ecs-to-ai-storage)，明确 Java 主线、Go telemetry 与 GPU/RDMA 新知识的边界；不把复制、在线迁移或 CRR 直接当成 GPU 数据面经验。
+
 如果已经掌握部分内容，不要从头顺序重读：先做训练册的 Day 0 诊断，按 0 分题回到对应章节。若全部达到 2 分，直接练八条追问链和目标 JD，而不是继续扩大阅读范围。
 
 ## 深度规则
@@ -31,7 +33,7 @@
 | NICE TO KNOW | 知道名字对应什么、改变了哪条假设 |
 | SKIP FOR NOW | 本月不投入，除非目标 JD 明确需要 |
 
-第二篇必要 C++ 中，**pointer/ownership/lifetime/RAII 与异步资源回收应按 MUST KNOW 对待**；其余语法只学到能读 CUDA/RDMA 示例。不要把一个月花成 C++ 语言进修。
+第二篇必要 C++ 中，**pointer/ownership/lifetime/RAII 与异步资源回收应按 MUST KNOW 对待**。面向 S3 over RDMA / GPU Data Path 岗位，若选择实现 Demo，另练 C++17/20 + CMake 的最小可编译 S3→host 链路；不把一个月花成完整 C++ 语言进修。
 
 **MUST KNOW 约束的是回答能力，不是实现完整度。** 第三篇的长 schema、状态名和接口签名供阅读理解，不需要背诵或全量实现。各章“2 分钟回答”作为骨架，补一个本章算例/时序，再接一个条件变化即可；不是背稿计时任务。
 
@@ -88,13 +90,13 @@
 | Day 17～19 | 第三篇 §1～3 | 沿 §1.6 设计 key、目录与一次 1 GiB 冷 Prefix 恢复，解释 READY 和 lease |
 | Day 20～21 | 第三篇 §4～5；训练册 Gate Day 21 | 讲清缓存策略、late DMA；闭卷完成追问链 E/F |
 | Day 22～23 | 第三篇 §6～7 | 完成 64 MB 计算和一次 45 分钟 system design 演练 |
-| Day 24～26 | 第三篇 §7.2、§7.5、§8.11 | 连续追问、两次计时设计；读懂三个 Demo 实验，额外有余力再做 M0 |
+| Day 24～26 | 第三篇 §7.2、§7.4、§8.11～8.12 | 连续追问、项目卡和计时设计；若选择实作，从 C++ M0 的真实 S3→host 基线开始 |
 | Day 27～28 | 训练册八条知识链 + 已有项目材料 | 重点闭卷链 H；用真实材料准备 ECS 复制/迁移与 ObjectScale CRR 项目卡 |
 | Day 29～30 | 训练册 Gate Day 29、第三篇 §9、已投 JD 的反馈 | 随机十题与英文口述；只根据错题补课 |
 
-若只有 60 小时：优先 MUST KNOW；C++ 语法表只读懂；Demo 不做真实硬件扩展；跳过 NICE TO KNOW。不能删掉的内容是 **KV 计算、恢复 vs 重算、buffer lifetime、RDMA completion、S3 语义与失效路径**。
+若只有 60 小时：优先 MUST KNOW，跳过 NICE TO KNOW；Demo 不做真实硬件扩展，也不以实现完成作为投递前提。目标 JD 若明确考 C++ 编码，留出时间写最小 C++ S3 Range GET/校验，而不是只读语法表。不能删掉的内容是 **KV 计算、恢复 vs 重算、buffer lifetime、RDMA completion、S3 语义与失效路径**。
 
-Demo 默认只读设计。若选择实现，可先用 Java 或 Go 完成第三篇 §8.12 的真实 S3→Host Range GET probe，再选小范围 KV 策略/迟到写模拟；C++/CUDA/RDMA 后端留待支持环境单独验证。真实 S3 host 测量、策略模拟和真实 GPU-direct 性能不得混成同一组实测结果。
+Demo 默认先读设计；若选择实现，核心语言统一为 **C++17/20 + CMake**：M0 真实 S3→host Range GET/校验与耗时分解，M1 可选 C++ lease/失败状态机模拟。普通 C++ S3 SDK 不会自动实现 RDMA；真实 GPU/RDMA 路径需要支持的客户端、服务端和硬件。三类证据不得混成同一组实测结果，见[第三篇 §8.1](_docs/03_System_Design_Interview_Demo.md#cpp-demo-scope)。
 
 ## 三个贯穿算例
 

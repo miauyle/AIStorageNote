@@ -5,6 +5,9 @@ main:
   - title: 训练
     url: /docs/00_Interview_Drills/
     icon: fa-solid fa-pen-to-square
+  - title: 更新
+    url: /updates/
+    icon: fa-solid fa-clock-rotate-left
   - title: GitHub
     url: https://github.com/miauyle/ai-storage-notes
     icon: fa-brands fa-github

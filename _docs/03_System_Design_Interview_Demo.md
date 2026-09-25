@@ -98,6 +98,8 @@ flowchart TD
 
 远端 memory 仍有网络带宽、拓扑和故障边界。简单 pooling 能提供容量，但活跃消费者仍要获得可访问的数据。传输、prefix-aware routing 和局部副本是必要成本，不能只说“RDMA 一把梭”。
 
+<a id="kv-system-capacity"></a>
+
 ### 1.5 给出第一版可计算的部署，而不是画完架构就结束 — MUST KNOW
 
 用四个独立 worker 做容量示例，每个有 **56 GiB 实际 KV budget**，模型计算能力与权重空间另行满足。100 个并发请求均匀分配，每个初始 8K prompt，预计再缓存约 2K 输出；仍按 128 KiB/token，无跨卡 KV 分片。
@@ -116,6 +118,8 @@ flowchart TD
 3. 目录记录模型/前缀身份、表示与位置；每节点 manager 管实际 buffer，恢复前预留目标，避免控制端维护长期 GPU pointer。
 
 这不是硬件采购或部署建议，而是面试中的一组可验证假设。下一轮追问改变并发、长度或机器数时，更新这些数字和选择即可，无需重画一个更复杂的平台。
+
+<a id="kv-cold-prefix-request"></a>
 
 ### 1.6 贯穿案例：1 GiB 冷 prefix 的一次请求 — MUST KNOW
 
@@ -305,6 +309,8 @@ stateDiagram-v2
 
 锁只保护目录/状态变更，不持锁等网络。发布顺序为数据完成后可见 metadata；回收顺序先阻止新引用，再等现有 consumer/transfer 退出。固定的 lock ordering 避免跨 tier 搬运互相等锁。
 
+<a id="kv-directory-granularity"></a>
+
 ### 3.6 目录粒度：不要让一次请求查几百次远端 metadata — SHOULD KNOW
 
 沿用一个 8K prefix：16 tokens/page 对应 512 个逻辑 page；512 tokens/transfer chunk 对应 16 个 chunk。如果逐个串行查远端目录，假设每次 0.1 ms，仅 512 次 lookup 就花 51.2 ms，尚未搬任何 KV。这是教学延迟，不是某目录系统实测。
@@ -471,6 +477,8 @@ S3 PUT 成功的语义由 endpoint 与部署保证决定；不能把一个 RDMA 
 外层失败时全部请求转为 Prefill，会突然增加 GPU 计算量。需要 circuit breaker、bounded retry、抖动退避、miss admission、排队上限，以及必要的拒绝/降级。不要让“缓存是可选的”变成“缓存故障时随便打满系统”。
 
 后台 migration/rebalance/offload 使用独立限额，优先保证在线 Decode。这里是你过去大规模 data movement、recovery 和 production debugging 经验最容易形成差异化的部分。
+
+<a id="kv-recompute-storm"></a>
 
 ### 5.6 “缓存可选，坏了重算”为什么还需要容量预算 — MUST KNOW
 
@@ -735,6 +743,8 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 **30. 如何支持 GPU-direct object storage？— MUST KNOW**  
 保留对象控制路径，在 endpoint 与 SDK 协商 buffer descriptor、transport 和 GPU capability；data node 执行支持的直达搬运。特别设计注册复用、descriptor 寿命、partial failure、GPU visibility、PUT commit 和明确 TCP fallback，再证明实际路径与性能。定位：Document 2 §7；本篇 §3、§5。
 
+<a id="ecs-objectscale-experience"></a>
+
 ### 7.4 用已有经验回答“你能带来什么”
 
 不要把模拟 Demo 说成生产 GPU/RDMA 经验。一个真实可用的表达是：
@@ -756,6 +766,8 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 **90 秒口述骨架：**“我在 ECS/ObjectScale 主要用 Java、Go、Python 做对象存储的数据移动、复制与恢复。在 `[具体项目]` 中，我负责 `[本人负责的设计/代码]`，遇到 `[实际约束或故障]`，通过 `[决策和验证]` 得到 `[可核实结果]`。迁移到 KV 冷层，我会沿用对完整性、重试和后台流控的经验，同时新增加 GPU buffer 生命周期、layout 与设备可见性的验证。CUDA/RDMA 实测我会按已完成范围说明。”方括号只填真实材料，不能把面试设计或模拟写成生产成果。
 
 若 Demo 尚未实现，说“已完成设计和预算分析”；模拟通过后再说明验证过的状态机/故障场景；只有真实设备实验完成后才描述硬件路径结果。不要直接背诵任何超出个人实际经历的完成态。
+
+<a id="kv-system-diagnostics"></a>
 
 ### 7.5 用两个反例练习诊断，不增加知识范围 — MUST KNOW
 
@@ -1018,6 +1030,8 @@ KVCacheManager
 
 **面试展示的合格证据：**一张组件图，一次 miss→restore→ready 的 trace，一次 late completion 安全处理，一张随 reuse/带宽变化出现正负收益的结果表。比只有漂亮架构图或一句“支持 RDMA”更能说明工程能力。
 
+<a id="kv-demo-experiments"></a>
+
 ### 8.11 最小可讲版本：三条实验，不做完整平台
 
 先把 §8.3 的若干类型合并为少量记录对象即可，别为每种 ID/proof 单独建立框架。单进程目录、固定模型与布局、三个容量池已经能跑出核心行为。
@@ -1029,6 +1043,8 @@ KVCacheManager
 | 部分失败与迟到写 | 旧 attempt 写一半超时，新 attempt 到独立目标，旧事件随后到达 | 旧目标一直隔离、新目标 checksum 正确、最终没有遗留 lease |
 
 做到这三条，就已有可讲的实现证据；尚未做到时，可按设计题口述预期，不宣称实验通过。真实 S3、全量 benchmark 矩阵、CPU/GPU 适配与集群目录分开扩展。§8.9 的完整 correctness 表作为扩展时的验收清单。
+
+<a id="s3-host-probe"></a>
 
 ### 8.12 对象存储岗位的最短真实链路 — SHOULD KNOW
 

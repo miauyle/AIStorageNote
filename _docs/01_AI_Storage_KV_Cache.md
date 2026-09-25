@@ -307,6 +307,8 @@ sequenceDiagram
 
 如果 1 GiB KV 必须在交接前全部传完，那么即使理想 400 Gbps 单链路也要约 21.5 ms；这不是一个可以忽略的函数调用。分离是否值得，要同时看 GPU 效率收益、网络成本和 TTFT 增量。
 
+<a id="kv-prefix-hit-ttft"></a>
+
 ### 3.5 一次“命中 6K，新增 2K”的请求究竟省了什么 — MUST KNOW
 
 沿用后文的 128 KiB/token 模型。一个 8,192-token prompt，前 6,144 tokens 有兼容 KV，后 2,048 tokens 是新问题。前缀 KV 为 768 MiB，后缀最终增加 256 MiB。下面暂不计块取整和首 token 边界修正。
@@ -455,6 +457,8 @@ Weights 与 KV 的量化独立：权重 INT4 不代表 KV 也 INT4。需要分�
 
 完成请求只意味着逻辑使用结束，不代表所有异步 DMA 已结束。**引用计数、传输 lease 和 completion 共同决定实际 lifetime。** 这是你后面读 C++/CUDA/RDMA 时最重要的连接点。
 
+<a id="kv-capacity-growth"></a>
+
 ### 4.8 容量追问：现在放得下，为什么生成一会儿就 OOM — MUST KNOW
 
 沿用 §4.4 的 56 GiB KV budget，每请求初始 8K tokens、无共享。40 个请求初始占 40 GiB。如果每个请求还要生成并缓存约 2K tokens，最终增加 `40×2,048×128 KiB = 10 GiB`，达到约 50 GiB。这个预算有机会容纳，仍要考虑 page 和运行时余量。
@@ -547,6 +551,8 @@ vLLM 当前 prefix caching 设计使用前块 hash、当前 token 和额外身�
 - Eviction order：从无人使用且可重算的块中选牺牲者。
 
 **三层追问的关键：**内容命中、位置存在、当前可消费，是三个不同判断。索引里有 key 但对象已淘汰，不是有效命中；在 CPU 有副本，也不代表 GPU 可以立即执行。
+
+<a id="kv-block-lifecycle"></a>
 
 ### 5.5 从 block table 走一次共享、增长和释放 — MUST KNOW
 
@@ -684,6 +690,8 @@ LMCache 是外部 KV 管理与复用层，可把 KV 放到 CPU、磁盘或远端
 
 **概念连接：**`Inference engine ↔ KV connector ↔ KV 管理层 ↔ storage/transport backend`。这条分工不保证任意版本可以互换；runtime ABI、模型/layout、connector、后端和 GPU 支持要组合验证。[LMCache 兼容性说明](https://docs.lmcache.ai/getting_started/compatibility.html)
 
+<a id="kv-restore-recompute-budget"></a>
+
 ### 6.8 把“取决于 tradeoff”变成一个可执行选择 — MUST KNOW
 
 对完整 1 GiB prefix，假设重算 60 ms、恢复固定开销 5 ms，其余传输与计算均不重叠。恢复胜出的必要条件为：
@@ -748,6 +756,8 @@ HBM 既贵又有限，但不是所有 KV 都同样热。我优先保留活跃 De
 冷层对象应尽量 immutable，以模型/格式 namespace 隔离；热门 prefix 缓存在近端；lookup 返回位置与兼容性而不是长期 GPU 地址；恢复前预留 GPU 容量；完成、校验和设备可见后发布；远端失败允许走重算或其他副本，禁止把半块交给 attention。
 
 “是否适合”应通过真实 prefix 长度、热度分布与 end-to-end SLO 决定。Document 3 会把这些约束展开为一套可面试的设计。
+
+<a id="kv-cold-prefix-decision"></a>
 
 ### 7.4 贯穿例子的四个判断 — MUST KNOW
 

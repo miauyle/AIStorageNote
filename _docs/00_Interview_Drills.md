@@ -220,7 +220,7 @@ Retest D+1 / D+3 / D+7:
 
 | JD 原文要求 | 频次 | 当前证据 | 差距 | 本月动作 |
 |---|---:|---|---|---|
-| 示例：C++ ownership / concurrency |  | Document 2 代码阅读 / 已有项目 | 是否缺现场 coding | 增加两道短代码题或降低该岗位优先级 |
+| 示例：C++ ownership / concurrency |  | Document 2 代码阅读；若已完成，再填 C++ Demo M0/M1 | 是否缺现场 coding | 写最小 RAII/异步回收测试，未实现不写成已有编码经验 |
 | 示例：RDMA / GPUDirect debugging |  | 路径图、诊断清单 | 无真实硬件结果 | 如实写模拟边界；准备验证方案 |
 | 示例：checkpoint / dataset pipeline |  | Document 1 §2、对象存储经历 | 缺 AI workload 案例 | 补一个已有故障经验的迁移表述 |
 

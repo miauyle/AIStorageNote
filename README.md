@@ -1,24 +1,26 @@
 # AI Storage 一个月面试冲刺教程
 
-> 面向有多年分布式对象存储经验、主要使用 Java 的工程师。  
-> 面试版修订：2026-09-20 · 中文教程，保留英文术语与英文短答。
+> 面向有 Dell ECS/ObjectScale 开发经验、主要使用 Java/Go/Python 的工程师。
+> 面试主线修订：2026-09-25 · 中文教程，保留英文术语与英文短答。
 >
-> 目标：约一个月后开始投递 AI Storage / GPU Data Path / 高性能对象存储相关岗位。
+> 目标：用约一个月准备 KV Cache × GPU Data Path × S3 over RDMA 交汇处的存储岗位，并在准备过程中开始针对性投递。
 
 ## 从这里开始
 
 | 顺序 | 主教程 | 读完应能做什么 |
 |---|---|---|
-| 1 | [AI Storage & KV Cache Interview Crash Course](_docs/01_AI_Storage_KV_Cache.md) | 从 LLM workload 推导 KV 容量、热度、分页、复用与层级选择 |
-| 2 | [GPU Data Path: CUDA, RDMA, GPUDirect and S3](_docs/02_GPU_Data_Path.md) | 解释 Storage→GPU 的每一步、copy/DMA、ownership 与完成顺序 |
-| 3 | [AI Storage System Design & Interview Guide](_docs/03_System_Design_Interview_Demo.md) | 完成分布式 KV 系统设计，回答 30 个必答题，并拿到 Demo 实现规格 |
-| 配套 | [AI Storage 闭卷训练册](_docs/00_Interview_Drills.md) | Day 0 诊断、七条追问链、随机算题、英文口述与错题复测 |
+| 1 | [AI Storage & KV Cache Interview Crash Course](_docs/01_AI_Storage_KV_Cache.md) | 区分活跃 Decode、P/D 交接和冷 Prefix 复用；从容量、热度与重算成本决定是否存 S3 |
+| 2 | [GPU Data Path: CUDA, RDMA, GPUDirect and S3](_docs/02_GPU_Data_Path.md) | 沿一次冷 KV Range GET 解释服务端读取、TCP/Host 或 RDMA/GPU 路径、buffer 寿命与完成条件 |
+| 3 | [AI Storage System Design & Interview Guide](_docs/03_System_Design_Interview_Demo.md) | 把 1 GiB 冷 Prefix 恢复到 GPU Ready 的设计、预算、故障和个人 ECS/ObjectScale 项目回答串起来 |
+| 配套 | [AI Storage 闭卷训练册](_docs/00_Interview_Drills.md) | Day 0 诊断、八条追问链、随机算题、英文口述与错题复测 |
 
 **这三份正文就是教程。** 官方链接用于核对事实与版本，不要求另读完整 CUDA/RDMA 文档才能理解。没有重写 ECS/ObjectScale 架构，也没有把任务扩成完整 AI Infra 课程。
 
 文档采用 Markdown，便于搜索、改写、做笔记和交给 Codex CLI。图用 Mermaid，表格和公式可直接阅读；在支持 Mermaid 的预览中显示为架构/时序图。三份主教程合计含 **22 组 Interview Check、17 张 Mermaid 图、30 道必答题**。Demo 只有设计与接口契约，没有完整实现代码。训练册与正文分开，第一次作答时不会直接看到标准答案。
 
-如果已经掌握部分内容，不要从头顺序重读：先做训练册的 Day 0 诊断，按 0 分题回到对应章节。若全部达到 2 分，直接练七条追问链和目标 JD，而不是继续扩大阅读范围。
+**贯穿案例：**假设一个可复用的 8K Prefix 有 1 GiB KV payload，聚合为 16 个 64 MiB 逻辑块。先决定恢复还是重算，再区分 S3→Host→GPU 基线与双方支持时的 S3 控制请求 + RDMA→GPU 路径；最后证明完整性、布局与设备可见，才发布 GPU Ready。Prefill→Decode 的即时交接优先另行比较直接网络传输，活跃 Decode 不能默认逐 token 从对象层取 KV。
+
+如果已经掌握部分内容，不要从头顺序重读：先做训练册的 Day 0 诊断，按 0 分题回到对应章节。若全部达到 2 分，直接练八条追问链和目标 JD，而不是继续扩大阅读范围。
 
 ## 深度规则
 
@@ -51,10 +53,11 @@
 | RAII / Async 名字都认识 | 第二篇 §2.7、§3.7：看代码找 lifetime 错误，再走双缓冲时间轴 |
 | QP/CQ/MR 各背一句 | 第二篇 §5.9：把 source、target、lkey、rkey、WR 与 CQ 对应起来 |
 | GPU-direct 自动得到可用 KV | 第二篇 §7.8、§8.2：布局转换与有证据的性能排障 |
+| KV、S3 和 GPU 各自会说却串不起来 | 第一篇 §7.4 → 第二篇 §7.9 → 第三篇 §1.6：沿同一冷 Prefix 走到 GPU Ready |
 | 架构图画完就算设计 | 第三篇 §1.5、§3.6、§5.6：四 worker 容量、目录粒度、重算风暴预算 |
 | 三个独立问题当三层追问 | 第三篇 §7.2、§7.5：改变数字/条件，沿同一问题继续判断 |
 
-以上案例的时间、成本和小模型配置均明确为教学输入；不把推演结果当厂商实测。已有 30 道答案卡仍作索引，深度练习集中到七条知识链，见第三篇 §7.6。
+以上案例的时间、成本和小模型配置均明确为教学输入；不把推演结果当厂商实测。已有 30 道答案卡仍作索引，深度练习集中到八条知识链，见第三篇 §7.6。
 
 ## 按目标 JD 调整最后一周的重点
 
@@ -64,33 +67,34 @@
 |---|---|---|
 | Dataset、checkpoint、分布式存储、对象读写吞吐 | 第一篇 §2；第二篇 §7～8；已有 recovery/rebalance 项目 | 高级 KV policy、完整推理引擎集成 |
 | KV serving、prefix reuse、inference storage | 第一篇 §3～7；第三篇容量、调度、失败与系统设计 | verbs 建链参数、CUDA kernel 实现 |
+| KV 冷层 + GPU Data Path + S3/RDMA 对象路径 | 第一篇 §7.4、第二篇 §7.9、第三篇 §1.6/§7.4/§8.12；闭卷链 H | 泛训练平台、完整模型源码与自写 RNIC driver |
 | GPU data movement、RDMA、C++ systems | 第二篇 ownership、Stream/Event、MR/QP/CQ、GPUDirect；短代码阅读 | 更多模型架构、复杂冷层缓存策略 |
 
 如果 JD 明确把现代 C++、CUDA 或 verbs 实操列为核心考核，本教程只能补齐机制与系统判断，仍需专门编码练习。将重点落在真实要求上，比试图同时达到所有岗位的实现深度更适合一个月准备期。
 
 ## 30 天怎么使用这些正文
 
-按每天约 3 小时安排，共约 90 小时；可与投递并行。开始前先用训练册做 Day 0 诊断。每天建议约 90 分钟读正文、60 分钟闭卷画图/算题/口述、30 分钟纠错；错题按 D+1/D+3/D+7 复测。官方资料主要用于核对特定边界，避免阅读时间不断挤占输出练习。
+按每天约 3 小时安排，共约 90 小时；**第二周起可小批量投递匹配 JD，并用实际追问修正学习重点**，无需等第 30 天。开始前先用训练册做 Day 0 诊断。每天建议约 90 分钟读正文、60 分钟闭卷画图/算题/口述、30 分钟纠错；错题按 D+1/D+3/D+7 复测。官方资料主要用于核对特定边界，避免阅读时间不断挤占输出练习。
 
 | 日期 | 直接学习的章节 | 当日/阶段可检查的输出 |
 |---|---|---|
 | Day 1～3 | 第一篇 §1～3 | 画 token→attention→KV；讲清训练/推理、Prefill/Decode |
 | Day 4～5 | 第一篇 §4 | 手算 FP16/FP8、MHA/GQA/MQA、10/100 并发与共享收益 |
-| Day 6～7 | 第一篇 §5～7；训练册 Gate Day 7 | 解释 paging、prefix 与 offload；闭卷完成追问链 A/B |
+| Day 6～7 | 第一篇 §5～7；训练册 Gate Day 7 | 解释 paging、prefix 与 offload；用 §7.4 选择冷 KV 恢复/重算，完成追问链 A/B |
 | Day 8～10 | 第二篇 §1～2 | 画拓扑；把 Java 引用思维切换到 buffer ownership/lifetime |
 | Day 11～12 | 第二篇 §3～4 | 解释 pinned/Async/Stream/Event 与 A/B/C 三条路径 |
 | Day 13～14 | 第二篇 §5；训练册 Gate Day 14 | 从 PD/MR/QP/CQ 讲完一次 READ/WRITE；闭卷完成追问链 C/D |
-| Day 15～16 | 第二篇 §6～8 | 区分 GDR/GDS/cuObject；画两种 S3 GET；解释如何证实路径 |
-| Day 17～19 | 第三篇 §1～3 | 设计 key、目录与一次恢复，解释 READY 和 lease |
+| Day 15～16 | 第二篇 §6～8 | 区分 GDR/GDS/cuObject；按 §7.9 画两种 S3 GET 并标注 GPU Ready 的证据 |
+| Day 17～19 | 第三篇 §1～3 | 沿 §1.6 设计 key、目录与一次 1 GiB 冷 Prefix 恢复，解释 READY 和 lease |
 | Day 20～21 | 第三篇 §4～5；训练册 Gate Day 21 | 讲清缓存策略、late DMA；闭卷完成追问链 E/F |
 | Day 22～23 | 第三篇 §6～7 | 完成 64 MB 计算和一次 45 分钟 system design 演练 |
 | Day 24～26 | 第三篇 §7.2、§7.5、§8.11 | 连续追问、两次计时设计；读懂三个 Demo 实验，额外有余力再做 M0 |
-| Day 27～28 | 训练册七条知识链 + 已有项目材料 | 随机改数字重算；准备迁移/恢复、性能排障、partial failure 三张项目卡 |
-| Day 29～30 | 训练册 Gate Day 29、第三篇 §9、目标 JD、投递 | 随机十题与英文口述；只根据错题补课 |
+| Day 27～28 | 训练册八条知识链 + 已有项目材料 | 重点闭卷链 H；用真实材料准备 ECS 复制/迁移与 ObjectScale CRR 项目卡 |
+| Day 29～30 | 训练册 Gate Day 29、第三篇 §9、已投 JD 的反馈 | 随机十题与英文口述；只根据错题补课 |
 
 若只有 60 小时：优先 MUST KNOW；C++ 语法表只读懂；Demo 不做真实硬件扩展；跳过 NICE TO KNOW。不能删掉的内容是 **KV 计算、恢复 vs 重算、buffer lifetime、RDMA completion、S3 语义与失效路径**。
 
-Demo 默认只读设计。若选择实现，优先用熟悉的 Java 完成三个小实验，C++/CUDA/RDMA 后端后续单独验证；不同时开展语言迁移、推理框架集成和硬件部署。
+Demo 默认只读设计。若选择实现，可先用 Java 或 Go 完成第三篇 §8.12 的真实 S3→Host Range GET probe，再选小范围 KV 策略/迟到写模拟；C++/CUDA/RDMA 后端留待支持环境单独验证。真实 S3 host 测量、策略模拟和真实 GPU-direct 性能不得混成同一组实测结果。
 
 ## 三个贯穿算例
 

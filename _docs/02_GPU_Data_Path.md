@@ -9,6 +9,7 @@ description: 理解 Storage 到 GPU 的数据路径、ownership、DMA 与完成�
 > Document 2 · 数据路径教程 · Java → Systems Programming 的最小桥梁  
 > 核实日期：2026-09-19。CUDA Runtime / GPUDirect RDMA 在线页面显示 13.4；cuObject 页面更新于 2026-09-17。它们是本次核对的文档快照，不代表任意环境都具备相同支持。
 > 面试版修订：2026-09-20；本次复核 CUDA 同步/异步说明、verbs MR/post-send 与 cuObject 页面。新增时序与性能案例为教学假设。
+> 2026-09-25：新增一个冷 KV Range GET 从对象服务端到 GPU Ready 的贯穿案例；未对所有外部资料重新核实。
 
 ## 目录
 
@@ -877,6 +878,23 @@ CPU 解压是另一个选择点：如果存储格式必须在 CPU 上解码，�
 3. **Q：部分 RDMA transfer 失败后直接 TCP 重试到同一个 buffer？** A：先确保旧 DMA 不再访问该区域，或使用隔离的新 allocation。晚到写不能靠一次 checksum 检查永久规避。
 
 **Common Trap：**S3 over RDMA 是统一通用标准；S3 GET 一定对应 RDMA READ；server memory→RNIC→GPU 就代表 SSD 也零拷贝；HTTP TLS 自动覆盖 RDMA payload。
+
+### 7.9 贯穿案例：一个冷 KV Range GET 怎样变成 GPU Ready — MUST KNOW
+
+沿用 [Document 1 的假设模型]({{ '/docs/01_AI_Storage_KV_Cache/' | relative_url }}#chapter-0)：8,192-token prefix 是 **1 GiB KV payload**，按 512 tokens 切成 16 个 **64 MiB 逻辑传输块**。假设目录已确认这个 prefix 与当前模型、tenant、token 前缀和 KV 表示兼容；这里跟踪其中一个 64 MiB 块。对象 byte range、目标 GPU offset 和最终 attention page 是**三套坐标**。
+
+| 阶段 | 对象服务端 / 客户端动作 | 尚不能宣称什么 |
+|---|---|---|
+| 选择 | KV manager 比较恢复与重算，核对对象版本或不可变 key、chunk 索引、范围及 checksum；为目标 buffer 预留容量 | Metadata hit 不等于 payload 可读，更不等于 GPU ready |
+| 请求 | S3 GET/Range 带上正常鉴权；若使用支持的 GPU-aware 扩展，SDK 与 endpoint 协商能力、临时 descriptor 和 attempt ID | 不能把任意 S3 endpoint 当作支持 RDMA；签名、代理与扩展 header 要组合验证 |
+| 服务端读取 | Gateway/数据节点定位版本，读出 range，必要时跨盘/节点取数据、EC 解码或拼装，并校验服务端结果 | 客户端只取 64 MiB，不代表后端也只读取 64 MiB；源端可能使用 DRAM staging |
+| Payload | 基线：S3/TCP → client host buffer → 必要的 pinned staging → H2D；支持的直达方案：服务端以 RDMA WRITE 把 payload 送到已注册的 client GPU buffer，或先送到 GPU staging | 避开 client host copy 不会省掉后端读、网络流量、注册和 GPU 内重排；GET→WRITE 是此方案的选择，见 §7.5 |
+| 完成与转换 | 核对预期 byte count、对象身份与校验；按所用 SDK/通信后端的完成协议确认旧 DMA 不再写；必要时 GPU kernel 把 staging blob 转换为分散 pages，并建立 consumer 的设备可见性 | HTTP 返回、CQE 或 checksum **单独一个**均不足以证明最终 page 可被 attention 安全读取 |
+| 发布或失败 | 只有所有目标 pages 就绪才更新 block table / READY；失败块隔离，重算、其他副本或安全 fallback；源/目标 lease 到相关工作完成后再释放 | Timeout 只是调用方停止等待，不能让旧 target 立即回池，也不能把半块发布 |
+
+这是一套**面试设计流程**，不是对 cuObject/vLLM 联合实现的逐函数复刻。NVIDIA 的 cuObject 文档描述了 S3 请求中的 RDMA 能力协商，以及服务端 GET 通过 RDMA WRITE 向 client GPU 或 system memory 搬运；真实接入还需 SDK、对象服务、设备和版本匹配。[cuObject 官方说明](https://docs.nvidia.com/gpudirect-storage/cuobject/index.html)
+
+用同一组假设做数量级检查：若有效 payload 带宽是 8 GiB/s，单个 64 MiB 块的**纯传输下界**为 `64 MiB / 8 GiB/s = 7.8125 ms`；16 块合计 1 GiB 的纯传输时间至少约 125 ms（假定这条路径可持续达到该带宽）。每块请求、注册、后端读取、EC 放大、GPU 转换与同步都要另算；也不能把 16 次固定开销无条件相加，若有并行/流水须以 trace 证明。相同请求负载下比较 `lookup→GPU-ready` 的 p50/p99、CPU/DRAM、后端读取量、NIC/PCIe 和 ITL，才能判断 RDMA 是否带来**业务净收益**。预算如何与重新 Prefill 比较，见 [Document 3 §6]({{ '/docs/03_System_Design_Interview_Demo/' | relative_url }}#chapter-6)。
 
 <a id="chapter-8"></a>
 

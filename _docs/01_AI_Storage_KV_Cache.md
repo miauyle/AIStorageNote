@@ -10,6 +10,7 @@ description: 从 LLM workload 推导 KV Cache 的容量、访问模式、缓存�
 > 核实日期：2026-09-19。正文以常规自回归、decoder-only、dense attention 的 Transformer 为基线；特殊模型明确标出。  
 > 学习产出：能从 workload 推导容量、访问模式、缓存层级与存储选型，而不是只解释名词。
 > 面试版修订：2026-09-20。新增案例均为明确假设下的推演；本次重点复核 prefix caching 与 CUDA/传输相关边界，未将全部来源重新标为当日核实。
+> 2026-09-25：新增 KV × S3 × GPU 的场景决策与冷 Prefix 贯穿案例；时间预算仍为教学假设。
 
 ## 目录
 
@@ -28,6 +29,19 @@ description: 从 LLM workload 推导 KV Cache 的容量、访问模式、缓存�
 ## 0. 范围与使用方法
 
 这套教程默认你已经会设计对象存储的数据放置、复制、恢复和后台任务。需要补齐的是：**GPU 消费什么数据，以什么频率消费，哪些状态可以重算，哪些 I/O 会阻塞用户。**
+
+### 本月贯穿主线：KV Cache × GPU Data Path × S3 over RDMA
+
+先按 **KV 的使用时刻** 选路径，再谈存储介质或 RDMA。三篇教程共用一个假设模型：`L=32, Hkv=8, D=128, FP16`，每 token 128 KiB；一个 8,192-token prefix 的 KV payload 为 1 GiB。把 16-token page 按 512 tokens 聚合，得到 16 个各 64 MiB 的逻辑传输块。**逻辑聚合不保证 GPU 上物理连续**，格式与恢复条件见 §4.6。
+
+| 场景 | 数据现在在哪里、何时消费 | 优先比较的路径 | 决策依据 |
+|---|---|---|---|
+| 活跃 Decode | 历史 KV 每步要读 | HBM 工作集；容量不足时受控暂停/抢占 | ITL、每步远端 bytes 与带宽预算；§6.5 |
+| Prefill→Decode 交接 | 本轮刚生成，目标 worker 马上消费 | 直接 GPU/DRAM 网络交接；按部署验证 RDMA 能力 | 交接完成时间、布局兼容与 TTFT；§3.4 |
+| 暂停请求恢复 | 一段时间后继续，完整状态未必会复用 | DRAM/近端存储，必要时远端；也要比较重算 | 恢复 SLO、保留成本和活跃引用；§6 |
+| 跨请求冷 prefix 复用 | 完整且兼容的 KV 暂时不活跃 | 近端热副本；有净收益才保存到共享 S3 冷层 | 命中概率、恢复到 GPU 的 p99、重算 GPU 时间；§6.8、§7 |
+
+本月的系统设计题聚焦最后一行：`prefix 命中 → 选择恢复/重算 → S3 GET → TCP/host 或支持的 RDMA/GPU 路径 → GPU Ready → 继续 Prefill/Decode`。对象层提供命名、共享、容量与对象语义；GPU-ready 仍要求正确布局、完整性和可见性。**P/D 即时交接与冷 prefix 复用是不同请求路径**，不能仅凭两者都使用 RDMA 就让每次交接强制经过 S3。数据路径逐段见 [Document 2 §7]({{ '/docs/02_GPU_Data_Path/' | relative_url }}#chapter-7)，完整系统追问见 [Document 3 §1～6]({{ '/docs/03_System_Design_Interview_Demo/' | relative_url }}#chapter-1)。
 
 | 等级 | 本文内容 | 面试达标标准 |
 |---|---|---|
@@ -734,6 +748,17 @@ HBM 既贵又有限，但不是所有 KV 都同样热。我优先保留活跃 De
 冷层对象应尽量 immutable，以模型/格式 namespace 隔离；热门 prefix 缓存在近端；lookup 返回位置与兼容性而不是长期 GPU 地址；恢复前预留 GPU 容量；完成、校验和设备可见后发布；远端失败允许走重算或其他副本，禁止把半块交给 attention。
 
 “是否适合”应通过真实 prefix 长度、热度分布与 end-to-end SLO 决定。Document 3 会把这些约束展开为一套可面试的设计。
+
+### 7.4 贯穿例子的四个判断 — MUST KNOW
+
+对开头的 **1 GiB 冷 prefix、16 个 64 MiB 逻辑块**，面试时先做四个判断，而不是一开始就选 S3 over RDMA：
+
+1. **值不值得保存？** 相同模型、token 前缀及表示格式能否再次命中；预计节省的 Prefill GPU 时间能否覆盖写入、保留与将来的恢复成本？低复用时只保存可重算输入可能更合适。
+2. **这次值不值得恢复？** 沿用 §6.4 的教学输入：有效恢复带宽 8 GiB/s、固定与转换共 8 ms，则整个 prefix 的简化 load-to-ready 约 `1 GiB / 8 GiB/s + 8 ms = 133 ms`。重算若为 400 ms，可评估恢复；若为 60 ms，此条件下应优先评估重算。真实判断还要计入排队、TTFT p99、GPU 当前负载与可重叠阶段。
+3. **用哪条数据路径？** 传统 S3 可先恢复到 host buffer，再 H2D；支持双方协商和设备的方案可让 RDMA payload 进入 GPU buffer。比较的是同样对象、同样并发下的 **S3 lookup-to-GPU-ready**，不能拿 RDMA 微基准代替。后端盘/EC、注册与 GPU layout conversion 均可能抵消路径收益。
+4. **什么时候能用、失败怎么办？** Range 对应的对象版本、长度与校验要正确；目的 buffer 预留并持有 lease；所有依赖的数据完成传输、转换并对 GPU consumer 可见后才能发布。超时不证明旧 DMA 已停；新尝试用独立目标或先安全 drain，再决定 fallback/重算。
+
+这四步分别连接现有章节：容量与身份在 §4～5，经济选择在 §6，服务端与 GPU 路径在 [Document 2 §7～8]({{ '/docs/02_GPU_Data_Path/' | relative_url }}#chapter-7)，状态机、错误恢复和性能预算在 [Document 3 §1～6]({{ '/docs/03_System_Design_Interview_Demo/' | relative_url }}#chapter-1)。所有数字是教学输入，不能作为对象存储或 RDMA 产品实测。
 
 ### Interview Check
 

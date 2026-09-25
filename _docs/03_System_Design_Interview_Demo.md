@@ -9,6 +9,7 @@ description: 分布式 KV Cache 系统设计、面试答案与 Demo 规格。
 > Document 3 · 系统设计、面试答案与 Demo 规格  
 > 核实日期：2026-09-19。以下系统是**面试与 Demo 的 architecture proposal**，不是某厂商产品规格或已实测性能。
 > 面试版修订：2026-09-20。重点补充连续追问、容量落地、故障预算与闭卷验收；完整接口作为后续实现参考。
+> 2026-09-25：新增冷 Prefix 跨 S3/GPU 的案例、ECS/ObjectScale 项目卡和真实 S3 probe 规格；所有数值推演仍为教学输入。
 
 ## 目录
 
@@ -115,6 +116,18 @@ flowchart TD
 3. 目录记录模型/前缀身份、表示与位置；每节点 manager 管实际 buffer，恢复前预留目标，避免控制端维护长期 GPU pointer。
 
 这不是硬件采购或部署建议，而是面试中的一组可验证假设。下一轮追问改变并发、长度或机器数时，更新这些数字和选择即可，无需重画一个更复杂的平台。
+
+### 1.6 贯穿案例：1 GiB 冷 prefix 的一次请求 — MUST KNOW
+
+用 [Document 1 的四场景判断]({{ '/docs/01_AI_Storage_KV_Cache/' | relative_url }}#chapter-0)先限定：**这是一段跨请求可复用、当前不活跃的 8K prefix**，不是活跃 Decode 每步读取，也不是刚结束的 Prefill worker 与 Decode worker 之间的即时交接。本例有 16 个 64 MiB 逻辑传输块；实际 GPU pages 可能分散。阅读下面的顺序时，要能指出每一步的身份、空间和完成条件：
+
+1. Router 拿到 token 前缀和模型身份；KV manager 找到兼容的完整 prefix，目录返回可用副本、对象版本/不可变 key、表示格式和范围，而不是一个长期 GPU pointer。
+2. Planner 用当下排队、后端有效带宽与重算耗时决定是否恢复。教学输入下 `1 GiB / 8 GiB/s + 8 ms = 133 ms`；若重新 Prefill 要 400 ms，可评估从冷层恢复；若只要 60 ms，则在相同串行假设下优先评估重算。**命中不强制读对象层。**
+3. 若决定恢复，先 reserve HBM 目标与必要的 GPU staging，持有 allocation generation/lease；再从目录对应的对象位置读取。基线是 `S3 → host → H2D`，双方实际支持时才选 `S3 控制请求 + RDMA payload → GPU`。[Document 2 §7.9]({{ '/docs/02_GPU_Data_Path/' | relative_url }}#chapter-7)逐段列出了服务端读取、EC、descriptor 与 GPU 转换。
+4. 收齐所需 chunk，核对范围、长度、版本、checksum 与布局；确认传输不再写目标，完成必要的 GPU 转换和消费顺序，最后 publish READY 并安装 block table。未命中的后缀仍要 Prefill；后续 Decode 仍读历史 KV。
+5. 若中途 timeout，先隔离部分写入的 target，另用安全目标 fallback 或受控重算；旧目标等 drain 后回收。对象层大范围故障时，限制重算准入，保护已在 Decode 的请求。
+
+面试收尾给出四项证据：`load-to-GPU-ready p50/p99`、避免的 Prefill GPU 时间、TTFT/ITL 与满足双 SLO 的 goodput、后端读放大/CPU/DRAM/NIC/PCIe 消耗。一次请求在预算内不等于整体 p99 达标；需要相同 workload 的 A/B 测量。上述 133 ms 是教学时间，不是任何对象产品的承诺。
 
 ### Interview Check
 
@@ -732,6 +745,16 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 
 准备三张真实项目卡即可：一次大规模迁移/恢复、一次性能排障、一次 partial failure。每张按“约束 → 关键决定 → 为什么没选另一方案 → 如何验证 → 实际结果”组织。映射到 AI 场景时只补变化：源/目标多了 GPU buffer，完成多了设备可见性，后台预算要保护 TTFT/ITL，可重算 KV 的耐久等级可以不同。避免只说“分布式系统是通用的”。
 
+对 Dell ECS/ObjectScale 的 **3 年 10 个月**经历，可以从已做过的项目中选两张卡，不必临时虚构 GPU 项目：
+
+| 已有工作，按实际负责部分讲 | 本人可提供的证据 | 在本题中对应的追问 |
+|---|---|---|
+| ECS 跨 VDC chunk 复制、Journal replay、Remote Read / 远端恢复 | 复制与恢复的提交顺序、异常定位、重试和数据校验；用真实故障材料补一个结果 | S3 端 partial read、重试幂等、源副本损坏或不可达时如何降级 |
+| ECS AFA Gen3→Gen4 Tech Refresh | 参与设计、完成 ECS 侧主要代码和 happy-path 端到端自动化；用实际约束与结果补足 | 在线搬运与后台限速如何避免占满服务带宽，迁移时怎样验证不漏数据 |
+| ObjectScale 的 Bucket 级 CRR | 按本人实际职责说明对象语义、跨站复制和服务化集成，不把其他团队底层工作写到自己名下 | Namespace/version、对象可见性、失败恢复与 KV 冷层多副本的取舍 |
+
+**90 秒口述骨架：**“我在 ECS/ObjectScale 主要用 Java、Go、Python 做对象存储的数据移动、复制与恢复。在 `[具体项目]` 中，我负责 `[本人负责的设计/代码]`，遇到 `[实际约束或故障]`，通过 `[决策和验证]` 得到 `[可核实结果]`。迁移到 KV 冷层，我会沿用对完整性、重试和后台流控的经验，同时新增加 GPU buffer 生命周期、layout 与设备可见性的验证。CUDA/RDMA 实测我会按已完成范围说明。”方括号只填真实材料，不能把面试设计或模拟写成生产成果。
+
 若 Demo 尚未实现，说“已完成设计和预算分析”；模拟通过后再说明验证过的状态机/故障场景；只有真实设备实验完成后才描述硬件路径结果。不要直接背诵任何超出个人实际经历的完成态。
 
 ### 7.5 用两个反例练习诊断，不增加知识范围 — MUST KNOW
@@ -759,6 +782,7 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 | GPU-direct 改了哪段路径 | 21～23、30 | 区分 GDR/GDS，指出 fallback 与布局转换 |
 | 对象服务如何保留语义 | 26～28 | 走 GET 与 PUT，并区分传输完成和对象提交 |
 | 如何把系统串起来 | 29，结合 11/30 | 预算→架构→恢复→失效→验证 |
+| 冷 KV 从 S3 到 GPU Ready 的完整链 | 11、16～30 | 沿同一 1 GiB prefix 讲清恢复/重算、GET、DMA、转换、发布与安全重试 |
 
 每次只练一条链，换两组条件。30 秒答案用于开场，2 分钟答案加一个例子，深挖时再展开边界。一次读完 30 条但不能改变数字重算，尚未达到面试目标。
 
@@ -786,7 +810,7 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 
 本章是可以交给 Codex CLI 的实现规格。**本次只设计，不生成完整代码。** 目标是展示你懂 KV identity、分层、数据移动与故障，不是一个月内重写 vLLM。
 
-**本月必读仅为：**§8.1 明确模拟边界、§8.5 三条 flow、§8.11 最小展示。其余接口和场景是后续实现参考。Demo 不作为开始投递的前置条件；理解设计并能口述失败路径就能用于系统设计面试。
+**本月必读仅为：**§8.1 明确模拟边界、§8.5 三条 flow、§8.11 最小展示；面向 KV × S3 × GPU 岗位再读 §8.12 的真实 S3 probe。其余接口和场景是后续实现参考。Demo 不作为开始投递的前置条件；理解设计并能口述失败路径就能用于系统设计面试。
 
 ### 8.1 第一版到底模拟什么
 
@@ -1005,6 +1029,12 @@ KVCacheManager
 | 部分失败与迟到写 | 旧 attempt 写一半超时，新 attempt 到独立目标，旧事件随后到达 | 旧目标一直隔离、新目标 checksum 正确、最终没有遗留 lease |
 
 做到这三条，就已有可讲的实现证据；尚未做到时，可按设计题口述预期，不宣称实验通过。真实 S3、全量 benchmark 矩阵、CPU/GPU 适配与集群目录分开扩展。§8.9 的完整 correctness 表作为扩展时的验收清单。
+
+### 8.12 对象存储岗位的最短真实链路 — SHOULD KNOW
+
+若有 3～5 天实作时间，可以先做**独立的真实 S3 probe**，不必等模拟器的所有 tier、策略和接口实现完：用熟悉的 Java 或 Go SDK 向测试桶写入确定性 8/64 MiB 对象，记录不可变 key 或支持时的 version ID，再做完整 GET 与 Range GET；以自行计算的内容 checksum 验证字节、范围与重试结果。不要把 multipart ETag 无条件当作内容 MD5。[AWS 对 ETag 与校验的说明](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html)
+
+在固定 endpoint、数据量与并发下测 `GET submit→host buffer 完整且校验通过` 的 p50/p99、请求数、有效 payload 吞吐与 CPU/DRAM；分别改变 Range 大小、并发和重复读取。保存原始结果、环境与单位。**这项真实实验只证明 S3→host 路径**；没有 NVIDIA GPU 时不输出 H2D 或 GPU-ready 实测，没有双方支持的 cuObject/RDMA 环境时不输出真实 S3 over RDMA 对照。再用 M0 的事件模拟展示 §8.11 三条策略/故障实验，报告中把两种证据分开。真实硬件到位后，才在相同对象、range、并发和校验条件下加 GPU 路径 A/B 测试。
 
 ### Interview Check
 

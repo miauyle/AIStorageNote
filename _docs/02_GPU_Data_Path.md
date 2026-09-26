@@ -11,6 +11,16 @@ description: 理解 Storage 到 GPU 的数据路径、ownership、DMA 与完成�
 > 面试版修订：2026-09-20；本次复核 CUDA 同步/异步说明、verbs MR/post-send 与 cuObject 页面。新增时序与性能案例为教学假设。
 > 2026-09-25：新增冷 KV Range GET 贯穿案例及通用对象服务端前台读路径；Java→C++ 的 buffer 前置也做了补充。未对所有外部资料重新核实。
 
+## 第一遍阅读导航
+
+| 先读 | 达标输出 | 本轮可后查 |
+|---|---|---|
+| §1～2：数量级、ownership | 能画拥有关系；完成[CPU C++ 实验]({{ site.baseurl }}/docs/04_CPP_Labs/) | 模板技巧与完整工具链 |
+| §3～6：CUDA、RDMA、GPUDirect | 标出每段 copy、资源寿命和完成条件 | 特定硬件建链参数 |
+| §7～8：对象路径与排障 | 沿一次 Range GET 解释瓶颈、验证与 fallback | 完整 SDK/server 集成 |
+
+实验时间包含在[90/60 小时预算]({{ site.baseurl }}/docs/00_Study_Guide/#time-budget)中。先证明 host 路径，尚无硬件时不强行实现 GPU/RDMA。
+
 ## 目录
 
 - [0. 阅读目标与优先级](#chapter-0)
@@ -194,6 +204,8 @@ auto b = std::move(a);
 `TransferContext = request_id + source_lease + destination_lease + registration_lease + completion_state`
 
 提交后，由 completion 队列/事件管理器持有 context；成功、失败、超时都要走收尾。超时只是调用方不再等，不能因此假设硬件停止访问。`shared_ptr` 可以延长 context lifetime，但它的原子引用计数不让 context 的普通字段自动线程安全。
+
+可运行配套：[Java 开发者的最小 C++ 数据路径实验]({{ site.baseurl }}/docs/04_CPP_Labs/)，包含完整源文件、编译命令、故意出错与修复任务；不是仅看下面的接口示意。
 
 **工具链停止线：**本月会区分 `.cpp` host 编译与 `.cu` 的 CUDA 编译流程，理解 CMake target/link library，能用 gdb/lldb 看 host 堆栈和 use-after-free，知道 GPU 错误需要 CUDA 工具定位即可。不要先投入模板库和构建系统改造。
 

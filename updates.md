@@ -7,6 +7,13 @@ permalink: /updates/
 
 这里记录已发布的**教程内容更新**，按北京时间排列。每条链接指向当前教程的对应位置；旧章节可能已被后来修订。站点样式、按钮和构建修复不计入内容更新。
 
+## 2026-09-26 · 从阅读到动手：使用指南、C++ 实验与项目追问
+
+- **网站使用指南：**新增[90/60 小时预算与 30 天安排]({{ site.baseurl }}/docs/00_Study_Guide/#time-budget)，把原先 README 中的学习安排带到网站；实验替换部分阅读，不额外叠加任务。
+- **可运行 C++ 实验：**新增[ownership、异步生命周期、ASan 错误定位与 Range GET]({{ site.baseurl }}/docs/04_CPP_Labs/)，提供完整代码、CMake/CTest、预期结果和修改任务。本地 HTTP 契约测试与真实 S3/GPU 验证严格区分。
+- **已有项目深挖：**新增[复制、在线迁移和 CRR 三条追问链]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#ecs-project-drills)，对照本人设计/代码、状态证据和验证，不预设内部实现。
+- **阶段验收与阅读减负：**明确[入门切片、M0、M1 分别交付什么]({{ site.baseurl }}/docs/03_System_Design_Interview_Demo/#demo-stage-acceptance)，三篇正文新增第一遍阅读导航，[训练册]({{ site.baseurl }}/docs/00_Interview_Drills/#weekly-gates)补充项目与动手 Gate。
+
 ## 2026-09-25 · 按 ECS/ObjectScale 经历校准前置与 C++ Demo
 
 - **已有经验与学习前置：**[ECS chunk replication、在线迁移、ObjectScale CRR 与冷 KV 的边界]({{ site.baseurl }}/docs/01_AI_Storage_KV_Cache/#ecs-to-ai-storage)；Java 功能开发与 Go telemetry 的职责单独写清，不预设对象放置或 GPU 实现经验。

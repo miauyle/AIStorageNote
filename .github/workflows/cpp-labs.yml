@@ -1,0 +1,39 @@
+name: Learning content checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-and-http-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ libcurl4-openssl-dev
+      - name: Configure
+        run: cmake -S examples/cpp-data-path -B build/cpp-labs -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build/cpp-labs --parallel 2
+      - name: CPU and local HTTP tests (not S3 or GPU integration)
+        run: ctest --test-dir build/cpp-labs --output-on-failure
+
+  site-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - name: Build documentation without deploying
+        run: bundle exec jekyll build --baseurl /ai-storage-notes
+        env:
+          JEKYLL_ENV: production
+      - name: Check rendered documentation links and anchors
+        run: python3 scripts/check_site_links.py _site /ai-storage-notes

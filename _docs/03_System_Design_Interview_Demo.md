@@ -1008,7 +1008,7 @@ KVCacheManager
 
 | Milestone | 交付 | 完成标准 | 本月级别 |
 |---|---|---|---|
-| M0：C++ S3→host 基线 | CMake、C++ S3 客户端、PUT/GET/Range、checksum 与耗时分解 | 固定输入可复现，校验正确；只报告真实 host 路径 | 选择实作时优先 |
+| M0：C++ S3→host 基线 | 上传测试准备、CMake、C++ GET/Range、内容校验与耗时分解 | 固定输入可复现，校验正确；只报告真实 host 路径 | 选择实作时优先 |
 | M1：C++ 最小状态机模拟 | Key、容量池、RAII lease、事件完成、late completion 隔离 | §8.11 的三个小实验和故障不变量通过；结果明确标为 simulation | M0 后有余力再做 |
 | M2：CUDA adapter | 真实 device/pinned pools、stream/event；替换 FakeGpuTier | 验证 H2D/D2H、生命周期与计时；仍不宣称 RDMA | NICE TO KNOW |
 | M3：libibverbs host path | MR/QP/CQ、SEND/READ/WRITE、注册池 | 两节点或合适环境下字节正确、错误可回收；软件 RDMA 仅功能验证 | NICE TO KNOW |

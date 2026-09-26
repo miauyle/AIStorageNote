@@ -11,6 +11,17 @@ description: 分布式 KV Cache 系统设计、面试答案与 Demo 规格。
 > 面试版修订：2026-09-20。重点补充连续追问、容量落地、故障预算与闭卷验收；完整接口作为后续实现参考。
 > 2026-09-25：新增冷 Prefix 跨 S3/GPU 案例，校准 ECS/ObjectScale 个人项目卡，并把可选 Demo 统一为 C++ 基线与模拟；所有数值推演仍为教学输入。
 
+## 第一遍阅读导航
+
+| 先读 | 达标输出 | 实现时再查 |
+|---|---|---|
+| §1～6：一次冷 Prefix 请求 | 预算、恢复决策、发布与安全回收 | 长 schema、完整状态清单 |
+| §7：限时设计和个人项目 | 讲清本人工作，再连接新场景 | 30 道题按错题选读 |
+| §8.1、§8.7、§8.12：Demo 边界 | 明确自己做到哪个阶段 | §8.2～8.4 接口与全量模拟架构 |
+| §9：闭卷验收 | 换数字与故障条件仍能回答 | 不以硬件 Demo 当投递门槛 |
+
+网站日程见[使用指南]({{ site.baseurl }}/docs/00_Study_Guide/)；第一次写 C++ 从[小实验]({{ site.baseurl }}/docs/04_CPP_Labs/)开始，不要求先实现所有类型。
+
 ## 目录
 
 - [0. 你要交付的面试答案](#chapter-0)
@@ -764,6 +775,28 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 **90 秒口述骨架：**“我主要用 Java 开发 ECS/ObjectScale 的复制和在线迁移相关功能；Go 做过运行数据 telemetry 采集与统计，也用过 Python。以［具体需求］为例，我负责［本人代码/设计］；依据［实际日志和 chunk 状态证据］处理［约束或故障］，用［实际验证］得到［可核实结果］。转到冷 KV 数据路径，我能把已有的数据完整性、失败恢复与后台资源约束迁过去，但 GPU buffer 的 lifetime、layout、设备可见性和 RDMA 服务端集成属于要另行实现与验证的部分。”不要把这段骨架背成尚未发生的项目经历。
 
 若 C++ Demo 尚未实现，就说已经完成设计与预算；真实 S3→host 基线通过后只能说验证了主机路径；模拟状态机通过后可说验证了相应故障条件。只有真实 GPU/RDMA 环境的端到端证据才能写硬件路径结果。
+<a id="ecs-project-drills"></a>
+
+### 三条项目追问链：先证明真实工作，再连接 AI
+
+每条按“事实 → 机制/取舍 → 故障变体 → 验证”口述。下面是准备问题与答题检查点，**不是对 ECS/ObjectScale 内部实现的断言，也不预设你负责所有环节**。缺信息时回到已有私有材料，不让 AI 补造项目细节。
+
+| 项目 | 连续追问 | 回答必须落到什么证据 |
+|---|---|---|
+| Chunk replication | ① 一次任务由谁触发，你负责源端/目标端哪段？② 对端慢或暂不可达，哪些状态仍可确认，哪些需要重试？③ 已写入但确认丢失，与只写了一部分有什么区别？④ 进程重启后如何判定下一步，不误判完成？ | 本人改动、实际状态转换、日志与 chunk 状态的对应关系、验证场景；没有亲自处理的故障就作为设计讨论 |
+| 在线 migration / Tech Refresh | ① 你参与设计和实现的边界是什么？② 搬运期间仍有在线业务，怎样确认目标数据可用，何时允许结束某阶段？③ 中途失败或资源争用时，依据什么暂停/重试？④ happy-path 自动化覆盖了哪些步骤，失败/重启等尚缺哪些验证？ | ECS 侧本人代码、端到端测试步骤、完成条件与残留风险；若某阶段没有切换或清理动作，明确说明，不套用模板 |
+| ObjectScale Bucket CRR | ① 本人负责哪类对象复制行为？② 对象版本、删除或重复事件中哪些属于实际需求？③ 配置变更或源/目标暂不可用时如何避免把任务完成与对象可见混为一谈？④ 如何证明重试后的对象结果正确？ | 对照实际支持的语义、本人模块和用例；未参与的版本/删除细节不冒认，必要时说明需核对 |
+
+**一段回答的组织示例（占位项必须用本人材料填写）：**先说“我负责［哪段设计/代码］，约束是［具体约束］”；再选一次实际决策，说明“观察到［日志/状态］，排除［另一解释］，因此选择［处理］”；最后交代“通过［验证］确认［结果］，尚未覆盖［边界］”。没有生产事故就讲功能实现和验证，不强行编一个事故故事。
+
+每条最后才问一个迁移题：
+
+- 复制：若现在是用户等待的冷 KV 读取，哪些后台任务的容错节奏不再适用？回答需加入 deadline/TTFT 与完整后发布。
+- 迁移：若数据可重算，哪些持久数据保护要求可以改变，哪些资源约束仍存在？重算消耗 GPU，不能视作无成本。
+- CRR：为什么跨站副本语义不能直接当同机房 KV 复用策略？补充兼容身份、恢复收益和 GPU 可消费条件。
+
+**15 分钟验收：**3 分钟真实项目、8 分钟同一问题连续追问、4 分钟复盘。能说出本人代码/设计决策与验证，不只背通用不变量；反过来，也不要在每句话里强行插入 KV/RDMA。Go telemetry 保持运行数据采集与统计的职责，生产定位仍按实际日志/DT 证据讲。
+
 <a id="kv-system-diagnostics"></a>
 
 ### 7.5 用两个反例练习诊断，不增加知识范围 — MUST KNOW
@@ -817,7 +850,7 @@ RDMA 没有 bucket/key、版本、range/multipart、对象提交或 tenant 权�
 
 ## 8. Demo Design：GPU KV Cache Object Store — SHOULD KNOW
 
-本章是可以交给 Codex CLI 的实现规格。**本次只设计，不生成完整代码。** 目标是展示你懂 KV identity、分层、数据移动与故障，不是一个月内重写 vLLM。
+本章是可以交给 Codex CLI 的实现规格。**完整 KV/GPU 系统仍只设计，不提供整套实现。** 配套[最小 C++ 实验]({{ site.baseurl }}/docs/04_CPP_Labs/)已提供 CPU ownership 与只读 Range probe 的代码，属于入门切片，不代表完整 M0/M1 已完成。 目标是展示你懂 KV identity、分层、数据移动与故障，不是一个月内重写 vLLM。
 
 **本月必读仅为：**§8.1 的语言与证据边界、§8.12 的 C++ S3→host 基线、§8.11 的可选模拟实验；§8.5 的三条 flow 用于系统设计口述。其余接口与场景供后续实现参考。Demo 不作为开始投递的前置条件。
 
@@ -969,11 +1002,13 @@ KVCacheManager
 
 100 个不共享请求 payload 共 12.5 MiB，会对 8 MiB FakeGpuTier 形成容量压力。不要真的在笔记本分配 100 GiB 来证明正文公式。模拟某些超大工作负载时可以只记录逻辑 bytes，但至少保留一套小 payload 数据校验模式证明数据正确性。
 
+<a id="demo-stage-acceptance"></a>
+
 ### 8.7 开发 milestones：本月最多选 M0/M1，不要求全部完成
 
 | Milestone | 交付 | 完成标准 | 本月级别 |
 |---|---|---|---|
-| M0：C++ S3→host 基线 | CMake、C++ S3 客户端、PUT/GET/Range、checksum 与耗时分解 | 固定输入可复现，校验正确；只报告真实 host 路径 | 选择实作时优先 |
+| M0：C++ S3→host 基线 | 上传测试准备、CMake、C++ GET/Range、内容校验与耗时分解 | 固定输入可复现，校验正确；只报告真实 host 路径 | 选择实作时优先 |
 | M1：C++ 最小状态机模拟 | Key、容量池、RAII lease、事件完成、late completion 隔离 | §8.11 的三个小实验和故障不变量通过；结果明确标为 simulation | M0 后有余力再做 |
 | M2：CUDA adapter | 真实 device/pinned pools、stream/event；替换 FakeGpuTier | 验证 H2D/D2H、生命周期与计时；仍不宣称 RDMA | NICE TO KNOW |
 | M3：libibverbs host path | MR/QP/CQ、SEND/READ/WRITE、注册池 | 两节点或合适环境下字节正确、错误可回收；软件 RDMA 仅功能验证 | NICE TO KNOW |
@@ -982,7 +1017,18 @@ KVCacheManager
 
 这些是逐步验证的方向，不要求为了用 cuObject 先自己实现所有驱动/verbs 层。实际有可用库时优先复用；你需要理解边界，不必重写它们。
 
-**日历建议：**先给 M0 的编译、SDK 接入和正确性验证设 3～5 个工作日上限；C++ 新手遇到环境问题时缩小到单次 Range GET 与校验，M1 不应挤掉投递和项目复习。真实硬件扩展不设为投简历前置门槛。
+**分开验收，不让 M1 变成隐含必做项：**
+
+| 阶段 | 必须交付 | 不要求交付 |
+|---|---|---|
+| 入门切片（配套实验） | CPU ownership 与异步保活；本地 Range 协议/内容校验；有 endpoint 后另做一次真实读取 | 完整 M0、缓存状态机、云性能结论 |
+| M0：真实 S3→host | 用控制台/CLI/SDK 向专用测试 key 上传确定性对象，记录身份；C++ 普通 GET 与 Range 对照、内容校验；有界重试且每次重新验证；明确计时终点的重复测量/原始记录与环境说明 | KV miss→restore、late DMA、缓存收益表、GPU Ready |
+| M1：模拟正确性 | §8.11 三条实验、输入参数与事件 trace、失败后无错误发布/资源泄漏 | 实测 NIC 带宽、真实 GPU 性能、已接入 vLLM |
+| 硬件扩展 | 实际 client/server、GPU/NIC/版本/拓扑，路径与完成条件的证据 | 从模拟数字继承性能结论 |
+
+M0 的上传是测试准备，不要求首个 C++ 程序同时实现 PUT；若自己实现 PUT，另验提交/错误契约。预签名 URL 的只读 probe 只覆盖 M0 的 Range 切片，不能因为运行一次成功就勾选全部 M0。
+
+**日历建议：**C++ 实验和 M0 起步合计纳入[90 小时版 12 h / 60 小时版 6 h]({{ site.baseurl }}/docs/00_Study_Guide/#time-budget)的动手预算；这是时间上限，不保证覆盖完整 M0。到点后保留已完成证据与缺项，M1 默认不排入，真实硬件不作为投递门槛。
 
 ### 8.8 Benchmark plan
 
@@ -1000,7 +1046,7 @@ KVCacheManager
 | Offload policy | always / admit-by-reuse / discard | 为什么高 hit rate 不一定划算 |
 | Faults | partial、timeout、corrupt、late write、node loss | 正确性与受控降级 |
 
-输出最少包括：逐次 trace、summary JSON/CSV、模型参数、单位、模式、host 环境与软件版本。报告 `lookup_latency`、`load_to_ready_latency`、`simulated_TTFT`、容量峰值、有效/浪费预取 bytes、重算成本、失败/回收计数。没有真实 LLM 时不输出“实测模型 ITL”。
+输出最少包括原始记录、summary JSON/CSV、单位、模式、host 环境与软件版本。**M0** 记录对象身份（不含凭据/预签名 URL）、Range、请求及校验时间、成功/失败与重试次数；重复采样时披露样本数、预热和连接复用条件，单次 probe 不报告 p99。**M1** 才报告模型参数、`lookup_latency`、`load_to_ready_latency`、`simulated_TTFT`、容量峰值、有效/浪费预取 bytes、重算成本、失败/回收计数。没有真实 LLM 时不输出“实测模型 ITL”。
 
 **什么时候计时结束？** S3 integration 到有效 host data 完成为止；CUDA 实验到相应设备完成/可见为止；模拟则到事件模型的 READY。不要比较异步 API 的 submit return 时间。
 
@@ -1027,7 +1073,7 @@ KVCacheManager
 
 首版不引入真实大模型、Kubernetes、分布式共识、多区域复制或真实 RDMA driver。需要的扩展接口已保留，但不创建一堆无功能的抽象类。README 应解释每个实验能证明和不能证明什么。
 
-**面试展示的合格证据：**一张组件图，一次 miss→restore→ready 的 trace，一次 late completion 安全处理，一张随 reuse/带宽变化出现正负收益的结果表。比只有漂亮架构图或一句“支持 RDMA”更能说明工程能力。
+**面试展示按已完成阶段准备：**M0 展示真实 endpoint 的 Range/普通 GET 校验、错误处理、原始耗时记录和环境说明；不要求缓存 trace。只有完成 M1 后，才增加 miss→restore→ready、late completion 隔离和参数变化下的正负收益表。入门切片只展示实际通过的子项，不包装为完整 M0。
 
 <a id="kv-demo-experiments"></a>
 
@@ -1049,7 +1095,7 @@ KVCacheManager
 
 <a id="cpp-s3-probe"></a>
 
-有实作时间时，先用 **C++17/20 + CMake** 和 [AWS SDK for C++ 的 S3 示例](https://docs.aws.amazon.com/code-library/latest/ug/cpp_1_s3_code_examples.html)构建独立的真实 S3 probe；若使用 S3-compatible endpoint，单独核对 endpoint 配置和 Range/校验兼容性。向测试桶写入确定性的 8/64 MiB 对象，记录不可变 key 或支持时的 version ID，再做完整 GET 与 Range GET；自行计算内容 checksum 核对字节、范围和重试结果。不要把 multipart ETag 无条件当作内容 MD5。[AWS 对 ETag 与校验的说明](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html)
+刚接触 C++ 时先做[可运行实验]({{ site.baseurl }}/docs/04_CPP_Labs/#cpp-range-lab)：libcurl + 预签名 URL 的只读 Range 切片。需要普通 GET、重试、凭据链或 PUT 等完整 SDK 能力时，再用 **C++17/20 + CMake** 和 [AWS SDK for C++ 的 S3 示例](https://docs.aws.amazon.com/code-library/latest/ug/cpp_1_s3_code_examples.html)构建独立的真实 S3 probe；若使用 S3-compatible endpoint，单独核对 endpoint 配置和 Range/校验兼容性。向测试桶写入确定性的 8/64 MiB 对象，记录不可变 key 或支持时的 version ID，再做完整 GET 与 Range GET；自行计算内容 checksum 核对字节、范围和重试结果。不要把 multipart ETag 无条件当作内容 MD5。[AWS 对 ETag 与校验的说明](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html)
 
 在固定 endpoint、对象和并发下测从 GET 提交到 **host buffer 完整且校验通过** 的 p50/p99、有效 payload 吞吐与 CPU/DRAM；分别改变 Range 大小和在途请求，保存原始记录、软件版本和单位。M0 只证明 C++ S3→host 的真实路径；M1 用相同 C++ transfer 接口模拟注册/lease、部分失败与迟到写，但模拟数值不能与 M0 性能排名。没有 GPU/RNIC 时不报告 H2D、GPU Ready 或 RDMA 吞吐。
 

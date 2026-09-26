@@ -33,6 +33,15 @@ description: 记录高变化技术陈述的官方来源、核实边界与复查�
 | RoCE / RDMA | [NVIDIA RDMA-aware guide](https://networking-docs.nvidia.com/doca/archive/3-5-0/rdma-aware-networks-programming-guide) | 用户态对象与数据路径；不是 wire protocol 全教程 | 2026-09-19 使用 3.5.0 archive | 部署具体网络、DC/RC 或拥塞控制 |
 | S3 API | [GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)、[Multipart upload](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html) | 对象 range/multipart 语义，不代表任意 GPU 扩展 | 2026-09-19 | 依赖具体 endpoint 的一致性、重试或扩展行为 |
 
+## C++ 实验来源（2026-09-26）
+
+| 来源 | 本次使用范围 | 验证边界 |
+|---|---|---|
+| [CMake FindCURL](https://cmake.org/cmake/help/latest/module/FindCURL.html)、[CTest](https://cmake.org/cmake/help/latest/guide/tutorial/Testing%20and%20CTest.html) | imported target 与本地测试组织 | 示例要求 CMake ≥ 3.16、C++17、libcurl ≥ 7.85 |
+| [Clang ASan](https://clang.llvm.org/docs/AddressSanitizer.html) | opt-in heap-use-after-free 练习 | 不把检测不到错误当正确性证明 |
+| [libcurl Range](https://curl.se/libcurl/c/CURLOPT_RANGE.html)、[write callback](https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html) | 范围响应校验、分片写回调与有界 buffer | 本地 fixture 不是 S3 兼容性测试 |
+| [S3 GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)、[预签名 URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html) | 单 Range GET、对象授权和有效期 | 需用户自己的测试 endpoint；本次不声明真实云或硬件已验证 |
+
 ## 硬件规格来源
 
 | 硬件 | 来源 | 教程使用方式 |

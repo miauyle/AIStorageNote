@@ -1,11 +1,13 @@
 # AI Storage 一个月面试冲刺教程
 
 > 面向 Dell ECS/ObjectScale 工程师：Java 为复制/迁移/CRR 功能开发主力；Go 用于运行数据 telemetry 采集与统计，Python 曾用于工作。
-> 面试主线修订：2026-09-25 · 中文教程，保留英文术语与英文短答。
+> 面试主线修订：2026-09-26 · 中文教程，保留英文术语与英文短答。
 >
 > 目标：用约一个月准备 KV Cache × GPU Data Path × S3 over RDMA 交汇处的存储岗位，并在准备过程中开始针对性投递。
 
 ## 从这里开始
+
+网站阅读入口：[如何使用本教程](https://miauyle.github.io/ai-storage-notes/docs/00_Study_Guide/)；这里集中维护 **90/60 小时预算、30 天安排、JD 分流与停止线**。C++ 新手从[最小可运行实验](https://miauyle.github.io/ai-storage-notes/docs/04_CPP_Labs/)进入，完整源码在 [examples/cpp-data-path](examples/cpp-data-path)。
 
 | 顺序 | 主教程 | 读完应能做什么 |
 |---|---|---|
@@ -16,7 +18,7 @@
 
 **这三份正文就是教程。** 官方链接用于核对事实与版本，不要求另读完整 CUDA/RDMA 文档才能理解。没有重写 ECS/ObjectScale 架构，也没有把任务扩成完整 AI Infra 课程。
 
-文档采用 Markdown，便于搜索、改写、做笔记和交给 Codex CLI。图用 Mermaid，表格和公式可直接阅读；在支持 Mermaid 的预览中显示为架构/时序图。三份主教程合计含 **22 组 Interview Check、17 张 Mermaid 图、30 道必答题**。Demo 只有设计与接口契约，没有完整实现代码。训练册与正文分开，第一次作答时不会直接看到标准答案。
+文档采用 Markdown，便于搜索、改写、做笔记和交给 Codex CLI。图用 Mermaid，表格和公式可直接阅读；在支持 Mermaid 的预览中显示为架构/时序图。三份主教程合计含 **22 组 Interview Check、17 张 Mermaid 图、30 道必答题**。完整 KV/GPU Demo 仍是设计与接口契约；现已提供 CPU ownership/异步 lifetime 和只读 HTTPS Range probe 的 C++ 练习代码，不等于完整 M0/M1 或 GPU/RDMA 已实现。训练册与正文分开，第一次作答时不会直接看到标准答案。
 
 **贯穿案例：**假设一个可复用的 8K Prefix 有 1 GiB KV payload，聚合为 16 个 64 MiB 逻辑块。先决定恢复还是重算，再区分 S3→Host→GPU 基线与双方支持时的 S3 控制请求 + RDMA→GPU 路径；最后证明完整性、布局与设备可见，才发布 GPU Ready。Prefill→Decode 的即时交接优先另行比较直接网络传输，活跃 Decode 不能默认逐 token 从对象层取 KV。
 
@@ -61,42 +63,17 @@
 
 以上案例的时间、成本和小模型配置均明确为教学输入；不把推演结果当厂商实测。已有 30 道答案卡仍作索引，深度练习集中到八条知识链，见第三篇 §7.6。
 
-## 按目标 JD 调整最后一周的重点
+## 学习安排与动手入口
 
-下面是基于职责的阅读映射，不代表当前职位数量或招聘趋势；实际要求以你拿到的 JD 为准。前两周仍共用 KV 与数据路径基础。
+完整日程只在[网站使用指南](_docs/00_Study_Guide.md)维护，不再把网站读者需要的安排藏在仓库 README：
 
-| JD 主要强调的职责 | 加深重点 | 本月可以降低优先级 |
-|---|---|---|
-| Dataset、checkpoint、分布式存储、对象读写吞吐 | 第一篇 §2；第二篇 §7～8；已有 recovery/rebalance 项目 | 高级 KV policy、完整推理引擎集成 |
-| KV serving、prefix reuse、inference storage | 第一篇 §3～7；第三篇容量、调度、失败与系统设计 | verbs 建链参数、CUDA kernel 实现 |
-| KV 冷层 + GPU Data Path + S3/RDMA 对象路径 | 第一篇 §7.4、第二篇 §7.9、第三篇 §1.6/§7.4/§8.12；闭卷链 H | 泛训练平台、完整模型源码与自写 RNIC driver |
-| GPU data movement、RDMA、C++ systems | 第二篇 ownership、Stream/Event、MR/QP/CQ、GPUDirect；短代码阅读 | 更多模型架构、复杂冷层缓存策略 |
+- [90/60 小时预算](_docs/00_Study_Guide.md#time-budget)：C++ 实验替换部分阅读，不额外叠加；M1 默认不纳入。
+- [30 天安排](_docs/00_Study_Guide.md#thirty-days)：第二周起即可投递，依 Gate 和反馈修正重点。
+- [按 JD 分流](_docs/00_Study_Guide.md#jd-focus)：对象吞吐、KV serving、GPU 数据路径各有重点。
+- [C++ 实验](_docs/04_CPP_Labs.md)：可编译源文件、CMake/CTest、错误版本、修复练习和验证边界。
+- [项目追问链](_docs/03_System_Design_Interview_Demo.md#ecs-project-drills)：先证明已有工作，再说明可迁移判断。
 
-如果 JD 明确把现代 C++、CUDA 或 verbs 实操列为核心考核，本教程只能补齐机制与系统判断，仍需专门编码练习。将重点落在真实要求上，比试图同时达到所有岗位的实现深度更适合一个月准备期。
-
-## 30 天怎么使用这些正文
-
-按每天约 3 小时安排，共约 90 小时；**第二周起可小批量投递匹配 JD，并用实际追问修正学习重点**，无需等第 30 天。开始前先用训练册做 Day 0 诊断。每天建议约 90 分钟读正文、60 分钟闭卷画图/算题/口述、30 分钟纠错；错题按 D+1/D+3/D+7 复测。官方资料主要用于核对特定边界，避免阅读时间不断挤占输出练习。
-
-| 日期 | 直接学习的章节 | 当日/阶段可检查的输出 |
-|---|---|---|
-| Day 1～3 | 第一篇 §1～3 | 画 token→attention→KV；讲清训练/推理、Prefill/Decode |
-| Day 4～5 | 第一篇 §4 | 手算 FP16/FP8、MHA/GQA/MQA、10/100 并发与共享收益 |
-| Day 6～7 | 第一篇 §5～7；训练册 Gate Day 7 | 解释 paging、prefix 与 offload；用 §7.4 选择冷 KV 恢复/重算，完成追问链 A/B |
-| Day 8～10 | 第二篇 §1～2 | 画拓扑；把 Java 引用思维切换到 buffer ownership/lifetime |
-| Day 11～12 | 第二篇 §3～4 | 解释 pinned/Async/Stream/Event 与 A/B/C 三条路径 |
-| Day 13～14 | 第二篇 §5；训练册 Gate Day 14 | 从 PD/MR/QP/CQ 讲完一次 READ/WRITE；闭卷完成追问链 C/D |
-| Day 15～16 | 第二篇 §6～8 | 区分 GDR/GDS/cuObject；按 §7.9 画两种 S3 GET 并标注 GPU Ready 的证据 |
-| Day 17～19 | 第三篇 §1～3 | 沿 §1.6 设计 key、目录与一次 1 GiB 冷 Prefix 恢复，解释 READY 和 lease |
-| Day 20～21 | 第三篇 §4～5；训练册 Gate Day 21 | 讲清缓存策略、late DMA；闭卷完成追问链 E/F |
-| Day 22～23 | 第三篇 §6～7 | 完成 64 MB 计算和一次 45 分钟 system design 演练 |
-| Day 24～26 | 第三篇 §7.2、§7.4、§8.11～8.12 | 连续追问、项目卡和计时设计；若选择实作，从 C++ M0 的真实 S3→host 基线开始 |
-| Day 27～28 | 训练册八条知识链 + 已有项目材料 | 重点闭卷链 H；用真实材料准备 ECS 复制/迁移与 ObjectScale CRR 项目卡 |
-| Day 29～30 | 训练册 Gate Day 29、第三篇 §9、已投 JD 的反馈 | 随机十题与英文口述；只根据错题补课 |
-
-若只有 60 小时：优先 MUST KNOW，跳过 NICE TO KNOW；Demo 不做真实硬件扩展，也不以实现完成作为投递前提。目标 JD 若明确考 C++ 编码，留出时间写最小 C++ S3 Range GET/校验，而不是只读语法表。不能删掉的内容是 **KV 计算、恢复 vs 重算、buffer lifetime、RDMA completion、S3 语义与失效路径**。
-
-Demo 默认先读设计；若选择实现，核心语言统一为 **C++17/20 + CMake**：M0 真实 S3→host Range GET/校验与耗时分解，M1 可选 C++ lease/失败状态机模拟。普通 C++ S3 SDK 不会自动实现 RDMA；真实 GPU/RDMA 路径需要支持的客户端、服务端和硬件。三类证据不得混成同一组实测结果，见[第三篇 §8.1](_docs/03_System_Design_Interview_Demo.md#cpp-demo-scope)。
+Demo 的核心实现语言仍为 C++17/20。先做真实 S3→host 的 M0，有余力才实现 M1 状态机模拟；普通 C++ S3/HTTP 请求不等于 RDMA。具体交付见[分阶段验收](_docs/03_System_Design_Interview_Demo.md#demo-stage-acceptance)。现有练习只读测试对象，不自动上传、创建桶或运行真实云测试。
 
 ## 三个贯穿算例
 

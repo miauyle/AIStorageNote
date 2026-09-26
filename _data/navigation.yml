@@ -1,4 +1,7 @@
 main:
+  - title: 使用指南
+    url: /docs/00_Study_Guide/
+    icon: fa-solid fa-compass
   - title: Docs
     url: /docs/01_AI_Storage_KV_Cache/
     icon: fa-solid fa-book
@@ -13,12 +16,23 @@ main:
     icon: fa-brands fa-github
 
 sidebar:
+  - title: 从这里开始
+    icon: fa-solid fa-compass
+    open: true
+    children:
+      - { title: "如何使用本教程", url: /docs/00_Study_Guide/ }
+
   - title: 核心基础
     icon: fa-solid fa-layer-group
     open: true
     children:
       - { title: "AI Storage 与 KV Cache", url: /docs/01_AI_Storage_KV_Cache/ }
       - { title: "GPU Data Path", url: /docs/02_GPU_Data_Path/ }
+
+  - title: 动手练习
+    icon: fa-solid fa-code
+    children:
+      - { title: "最小 C++ 数据路径实验", url: /docs/04_CPP_Labs/ }
 
   - title: 系统设计
     icon: fa-solid fa-diagram-project
